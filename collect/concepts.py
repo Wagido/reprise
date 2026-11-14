@@ -51,6 +51,8 @@ FIELDS = [
     ("receivables", "I", "Créances clients"),
     ("inventory", "I", "Stocks"),
     ("payables", "I", "Dettes fournisseurs"),
+    # Hors table de correspondance : collecté à part (USA seulement).
+    ("market_cap", "I", "Capitalisation flottante (déclarée à la SEC)"),
 ]
 
 US_GAAP = {
@@ -134,7 +136,7 @@ US_GAAP = {
     ],
     "current_assets": [["AssetsCurrent"]],
     "current_liabilities": [["LiabilitiesCurrent"]],
-    "receivables": [["AccountsReceivableNetCurrent"]],
+    "receivables": [["AccountsReceivableNetCurrent"], ["ReceivablesNetCurrent"], ["AccountsNotesAndLoansReceivableNetCurrent"]],
     "inventory": [["InventoryNet"]],
     "payables": [["AccountsPayableCurrent"]],
 }
@@ -198,7 +200,7 @@ IFRS = {
     "leases": [["LeaseLiabilities"], ["NoncurrentLeaseLiabilities", "CurrentLeaseLiabilities"]],
     "current_assets": [["CurrentAssets"]],
     "current_liabilities": [["CurrentLiabilities"]],
-    "receivables": [["TradeAndOtherCurrentReceivables"], ["CurrentTradeReceivables"]],
+    "receivables": [["TradeAndOtherCurrentReceivables"], ["CurrentTradeReceivables"], ["TradeReceivables"]],
     "inventory": [["Inventories"]],
     "payables": [["TradeAndOtherCurrentPayables"], ["TradeAndOtherCurrentPayablesToTradeSuppliers"]],
 }

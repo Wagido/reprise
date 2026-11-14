@@ -1,9 +1,8 @@
 "use strict";
-// Analyse financière d'une société, dans l'esprit de l'analyse « par cycles »
-// enseignée en finance d'entreprise : bilan économique (actif économique =
-// immobilisations + BFR, financé par capitaux propres + dette nette), bilan
-// financier (fonds de roulement), compte de résultat en cascade, tableau de
-// flux, puis rentabilité et effet de levier.
+// Analyse financière d'une société selon le plan type en 4 étapes : marges,
+// investissements (BFR et immobilisations), financement, rentabilité ; puis
+// solvabilité, création de valeur, et valorisation par multiple avec un
+// montage de reprise (LBO) indicatif. Chaque ratio est comparé au secteur.
 // Dépend de app.js : val(), ok(), esc(), nf0, nf1, state.
 
 const Analyse = (() => {
@@ -66,8 +65,31 @@ const Analyse = (() => {
       cfo: g("cfo"), capex: g("capex"), cfi: g("cfi"), cff: g("cff"), acq: g("acquisitions"),
       div: g("dividends"), buyback: g("buybacks"), issue: g("share_issue"),
       debtIn: g("debt_issued"), debtOut: g("debt_repaid"),
-      ropat, margin, rotation, roce, iCost, de, roeTheo, roe,
+      ropat, margin, rotation, roce, iCost, de, roeTheo, roe, interest,
       bfrDays: ok(bfr) && ok(rev) && rev > 0 ? bfr / rev * 365 : null,
+      recvDays: ok(g("receivables")) && ok(rev) && rev > 0 ? g("receivables") / rev * 365 : null,
+      invDays: ok(g("inventory")) && ok(rev) && rev > 0 ? g("inventory") / rev * 365 : null,
+      // Délai fournisseurs rapporté aux achats ; à défaut au coût des ventes, sinon au CA.
+      payDays: ok(g("payables")) && ok(rev) && rev > 0
+        ? g("payables") / (ok(g("cost_of_revenue")) && g("cost_of_revenue") > 0 ? g("cost_of_revenue") : rev) * 365 : null,
+      ebitdaMargin: ok(ebitda) && ok(rev) && rev > 0 ? ebitda / rev : null,
+      netMargin: ok(ni) && ok(rev) && rev > 0 ? ni / rev : null,
+      ndEbitda: ok(netDebt) && ok(ebitda) && ebitda > 0 ? netDebt / ebitda : null,
+      coverage: ok(ebit) && ok(interest) && interest > 0 ? ebit / interest : null,
+      fcf: ok(g("cfo")) && ok(g("capex")) ? g("cfo") - g("capex") : null,
+      capexDa: ok(g("capex")) && ok(da) && da > 0 ? g("capex") / da : null,
+      capexRev: ok(g("capex")) && ok(rev) && rev > 0 ? g("capex") / rev : null,
+      mcap: g("market_cap"),
+      ev: ok(g("market_cap")) && ok(netDebt) ? g("market_cap") + netDebt : null,
+      evEbitda: ok(g("market_cap")) && ok(netDebt) && ok(ebitda) && ebitda > 0 ? (g("market_cap") + netDebt) / ebitda : null,
+      growth: (() => {
+        const r3 = g("revenue", i - 3);
+        return ok(rev) && ok(r3) && rev > 0 && r3 > 0 ? Math.pow(rev / r3, 1 / 3) - 1 : null;
+      })(),
+      growth1: (() => {
+        const r1 = g("revenue", i - 1);
+        return ok(rev) && ok(r1) && r1 > 0 ? rev / r1 - 1 : null;
+      })(),
     };
   }
 
@@ -304,11 +326,362 @@ const Analyse = (() => {
     return `<div class="card"><h3>${title}</h3><p class="note">Non disponible : ${what} non publié sous une étiquette standard pour cet exercice.</p></div>`;
   }
 
-  function render(c, i) {
-    const f = figures(c, i);
-    return economicBalance(f, c.cur) + financialBalance(f, c.cur) + incomeStatement(f, c.cur) +
-      cashFlow(f, c.cur) + leverage(f) + history(c);
+  // ---------- Paramètres réglables (mémorisés dans le navigateur) ----------
+  const params = { wacc: 8.5, lev: 3.5, rate: 6, mult: null };
+  try { Object.assign(params, JSON.parse(localStorage.getItem("reprise.params") || "{}")); } catch (e) { /* ignoré */ }
+  function saveParams() { try { localStorage.setItem("reprise.params", JSON.stringify(params)); } catch (e) { /* ignoré */ } }
+
+  // ---------- Comparaison au secteur ----------
+  const sectorCache = {};
+  const BENCH = ["growth", "ebitdaMargin", "margin", "netMargin", "bfrDays", "capexRev", "rotation", "ndEbitda",
+    "coverage", "roce", "roe", "evEbitda"];
+  function sectorStats(sector, i) {
+    const key = sector + "|" + i;
+    if (sectorCache[key]) return sectorCache[key];
+    const vals = Object.fromEntries(BENCH.map((k) => [k, []]));
+    let n = 0;
+    for (const c of state.companies) {
+      if (c.s !== sector) continue;
+      const f = figures(c, i);
+      if (!ok(f.rev) || f.rev <= 0) continue;
+      n++;
+      for (const k of BENCH) if (ok(f[k])) vals[k].push(f[k]);
+    }
+    const out = { n };
+    for (const k of BENCH) {
+      const a = vals[k].sort((x, y) => x - y);
+      out[k] = { sorted: a, median: a.length ? (a.length % 2 ? a[a.length >> 1] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null };
+    }
+    return (sectorCache[key] = out);
+  }
+  // Petite mention « secteur : médiane · rang » sous un indicateur.
+  function bench(stats, key, v, fmt, higherIsBetter = true) {
+    const s = stats[key];
+    if (!s || !ok(s.median) || s.sorted.length < 5) return "";
+    let rank = "";
+    if (ok(v)) {
+      const below = s.sorted.filter((x) => x < v).length;
+      const pctl = Math.round(below / s.sorted.length * 100);
+      const good = higherIsBetter ? pctl >= 50 : pctl <= 50;
+      rank = ` · <span class="${good ? "pos" : "neg"}">${pctl}e centile</span>`;
+    }
+    return `<small class="bench">secteur ${fmt(s.median)}${rank}</small>`;
   }
 
-  return { render, figures };
+  // ---------- Briques d'affichage ----------
+  const kpi = (label, value, extra = "") => `<div class="kpi"><b>${value}</b><span>${label}</span>${extra}</div>`;
+  const D = (v) => (ok(v) ? nf0.format(v) + " j" : "—");
+  const light = (state) => `<i class="light ${state}" aria-label="${state === "green" ? "bon" : state === "orange" ? "à surveiller" : state === "red" ? "alerte" : "inconnu"}"></i>`;
+  function step(n, title, sub, body) {
+    return `<section class="step"><h2 class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small></h2>${body}</section>`;
+  }
+  function seriesFor(c, fn) {
+    const ys = state.meta.years;
+    return ys.map((y, j) => ({ y, v: fn(figures(c, j)) }));
+  }
+
+  // Effet ciseaux : CA et charges d'exploitation (hors amortissements) en base 100.
+  function scissors(c, cur) {
+    const ys = state.meta.years;
+    const rows = ys.map((y, j) => { const f = figures(c, j); return { y, rev: f.rev, opex: ok(f.rev) && ok(f.ebitda) ? f.rev - f.ebitda : null, staff: f.staff }; })
+      .filter((r) => ok(r.rev) && ok(r.opex) && r.rev > 0 && r.opex > 0);
+    if (rows.length < 3) return "";
+    const b = rows[0];
+    const lines = [
+      ["Chiffre d'affaires", "--bar1", rows.map((r) => r.rev / b.rev * 100)],
+      ["Charges d'exploitation (hors amort.)", "--c-debt", rows.map((r) => r.opex / b.opex * 100)],
+    ];
+    if (rows.every((r) => ok(r.staff) && r.staff > 0)) lines.push(["Charges de personnel", "--bar2", rows.map((r) => r.staff / b.staff * 100)]);
+    const all = lines.flatMap((l) => l[2]);
+    const lo = Math.min(...all) * 0.97, hi = Math.max(...all) * 1.03;
+    const W = 640, H = 190, padL = 34, padB = 20;
+    const x = (k) => padL + k * (W - padL - 26) / (rows.length - 1);
+    const y = (v) => 8 + (hi - v) / (hi - lo || 1) * (H - padB - 8);
+    const svg = lines.map(([, col, vs]) => `<polyline fill="none" stroke="var(${col})" stroke-width="2.5" points="${vs.map((v, k) => `${x(k)},${y(v)}`).join(" ")}"/>` +
+      vs.map((v, k) => `<circle cx="${x(k)}" cy="${y(v)}" r="3" fill="var(${col})"><title>${nf0.format(v)}</title></circle>`).join("")).join("");
+    const axis = rows.map((r, k) => `<text x="${x(k)}" y="${H - 4}" text-anchor="middle">${r.y}</text>`).join("") +
+      `<line x1="${padL}" x2="${W - 10}" y1="${y(100)}" y2="${y(100)}" stroke="var(--line)" stroke-dasharray="4 3"/><text x="2" y="${y(100) + 4}">100</text>`;
+    const last = rows.length - 1;
+    const gap = lines[0][2][last] - lines[1][2][last];
+    const msg = Math.abs(gap) < 3 ? "Produits et charges évoluent au même rythme : pas d'effet ciseaux marqué."
+      : gap > 0 ? `Effet ciseaux favorable : depuis ${b.y}, le CA progresse plus vite que les charges (écart de ${nf0.format(gap)} points), la marge s'élargit.`
+        : `Effet ciseaux défavorable : depuis ${b.y}, les charges progressent plus vite que le CA (écart de ${nf0.format(-gap)} points), la marge se comprime.`;
+    return card("Effet ciseaux", `base 100 en ${b.y}`, `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Évolution comparée du CA et des charges">${axis}${svg}</svg>
+      <div class="legend">${lines.map((l) => `<span><i style="background:var(${l[1]})"></i>${l[0]}</span>`).join("")}</div>`, msg);
+  }
+
+  // Levier opérationnel observé : variation du résultat d'exploitation pour 1 % de variation du CA.
+  function operatingLeverage(c) {
+    const ys = state.meta.years, el = [];
+    for (let j = 1; j < ys.length; j++) {
+      const a = figures(c, j - 1), b = figures(c, j);
+      if (!ok(a.rev) || !ok(b.rev) || !ok(a.ebit) || !ok(b.ebit) || a.rev <= 0 || a.ebit <= 0) continue;
+      const dr = b.rev / a.rev - 1, de = b.ebit / a.ebit - 1;
+      if (Math.abs(dr) >= 0.02) el.push(de / dr);
+    }
+    if (el.length < 2) return null;
+    el.sort((p, q) => p - q);
+    return el[el.length >> 1];
+  }
+
+  // ---------- Étape 1 : les marges ----------
+  function step1(c, f, i, st) {
+    const lev = operatingLeverage(c);
+    let levTxt = "Pas assez d'années comparables pour estimer le levier opérationnel.";
+    if (ok(lev)) {
+      if (lev > 1.05) {
+        const pm = 1 - 1 / lev;
+        levTxt = `Levier opérationnel observé ≈ ${nf1.format(lev)} : quand le CA varie de 1 %, le résultat d'exploitation varie d'environ ${nf1.format(lev)} %.
+          Cela situe le point mort vers <b>${nf0.format(pm * 100)} % du CA</b> (marge de sécurité ≈ ${nf0.format((1 - pm) * 100)} %). ${pm > 0.8 ? "Entreprise proche de son point mort : bénéfice fragile." : pm > 0.6 ? "Sensibilité moyenne à la conjoncture." : "Bénéfice plutôt stable, loin du point mort."}`;
+      } else {
+        levTxt = `Levier opérationnel observé ≈ ${nf1.format(lev)} : le résultat ne suit pas mécaniquement le CA (coûts très variables, ou effets prix et non récurrents). Point mort non estimable ainsi.`;
+      }
+    }
+    const kpis = `<div class="kpis">
+      ${kpi("Croissance du CA sur 1 an", P(f.growth1))}
+      ${kpi("Croissance annuelle sur 3 ans", P(f.growth), bench(st, "growth", f.growth, P))}
+      ${kpi("Marge d'EBE (EBITDA)", P(f.ebitdaMargin), bench(st, "ebitdaMargin", f.ebitdaMargin, P))}
+      ${kpi("Marge d'exploitation après IS", P(f.margin), bench(st, "margin", f.margin, P))}
+      ${kpi("Marge nette", P(f.netMargin), bench(st, "netMargin", f.netMargin, P))}
+    </div>`;
+    return step(1, "Les marges", "la création de richesse", kpis + incomeStatement(f, c.cur) + scissors(c, c.cur) +
+      card("Risque d'exploitation : point mort", "", `<p class="note">${levTxt}</p>`,
+        "Estimation statistique à partir des comptes publiés (la répartition coûts fixes / variables n'est pas publiée). À confirmer par l'analyse des coûts."));
+  }
+
+  // ---------- Étape 2 : les investissements ----------
+  function capexNature(r) {
+    if (!ok(r)) return "—";
+    return r > 1.1 ? "capacité" : r >= 0.9 ? "maintien" : "retrait";
+  }
+  function step2(c, f, i, st) {
+    const ys = state.meta.years;
+    const fs = ys.map((_, j) => figures(c, j));
+    const idx = ys.map((_, j) => j).filter((j) => ok(fs[j].rev));
+    const row = (label, fn) => `<tr><td class="l">${label}</td>${idx.map((j) => `<td>${fn(fs[j])}</td>`).join("")}</tr>`;
+    const head = `<thead><tr><th class="l"></th>${idx.map((j) => `<th>${ys[j]}</th>`).join("")}</tr></thead>`;
+    const bfrTable = `<div class="tablewrap"><table>${head}<tbody>
+      ${row("Clients (jours de CA)", (x) => D(x.recvDays))}
+      ${row("Stocks (jours de CA)", (x) => D(x.invDays))}
+      ${row("Fournisseurs (jours d'achats)", (x) => D(x.payDays))}
+      ${row("<b>BFR (jours de CA)</b>", (x) => `<b>${D(x.bfrDays)}</b>`)}
+      ${row("Croissance du CA", (x) => P(x.growth1))}
+    </tbody></table></div>`;
+    // BFR qui grossit plus vite que le CA ?
+    const first = idx.find((j) => ok(fs[j].bfrDays)), lastJ = [...idx].reverse().find((j) => ok(fs[j].bfrDays));
+    let bfrMsg = "";
+    if (first !== undefined && lastJ !== undefined && lastJ > first) {
+      const d = fs[lastJ].bfrDays - fs[first].bfrDays;
+      bfrMsg = Math.abs(d) < 5 ? `BFR stable en jours de CA depuis ${ys[first]}.`
+        : d > 0 ? `Le BFR a gagné ${nf0.format(d)} jours de CA depuis ${ys[first]} : il croît plus vite que l'activité et consomme de la trésorerie.`
+          : `Le BFR a perdu ${nf0.format(-d)} jours de CA depuis ${ys[first]} : le cycle d'exploitation libère de la trésorerie.`;
+    }
+    if (ok(f.bfr) && f.bfr < 0) bfrMsg += " BFR négatif : les clients et fournisseurs financent l'exploitation, atout pour la croissance.";
+    const invTable = `<div class="tablewrap"><table>${head}<tbody>
+      ${row("Investissements (capex)", (x) => M(x.capex))}
+      ${row("Dotations aux amortissements", (x) => M(x.da))}
+      ${row("Capex / amortissements", (x) => X(x.capexDa))}
+      ${row("Nature", (x) => capexNature(x.capexDa))}
+      ${row("Capex en % du CA", (x) => P(x.capexRev))}
+      ${row("Flux d'exploitation", (x) => M(x.cfo))}
+      ${row("Rotation de l'actif économique", (x) => X(x.rotation))}
+    </tbody></table></div>`;
+    // Les investissements passés se traduisent-ils par plus de flux d'exploitation ?
+    const withCfo = idx.filter((j) => ok(fs[j].cfo));
+    let invMsg = "";
+    if (withCfo.length >= 3) {
+      const a = fs[withCfo[0]], b = fs[withCfo[withCfo.length - 1]];
+      const ratios = withCfo.map((j) => fs[j].capexDa).filter(ok);
+      const avg = ratios.length ? ratios.reduce((p, q) => p + q, 0) / ratios.length : null;
+      invMsg = `Sur ${ys[withCfo[0]]}–${ys[withCfo[withCfo.length - 1]]}, capex / amortissements moyen ${X(avg)} (${capexNature(avg)}) ; flux d'exploitation ${b.cfo > a.cfo ? "en hausse" : "en baisse"} de ${M(a.cfo)} à ${M(b.cfo)}.`;
+      if (ok(avg) && avg > 1.1 && b.cfo <= a.cfo) invMsg += " Des investissements de capacité qui ne produisent pas encore de flux supplémentaires : à surveiller.";
+    }
+    const kpis = `<div class="kpis">
+      ${kpi("BFR en jours de CA", D(f.bfrDays), bench(st, "bfrDays", f.bfrDays, D, false))}
+      ${kpi("Capex en % du CA", P(f.capexRev), bench(st, "capexRev", f.capexRev, P))}
+      ${kpi("Capex / amortissements", X(f.capexDa) + `<small> ${capexNature(f.capexDa)}</small>`)}
+      ${kpi("Rotation de l'actif économique", X(f.rotation), bench(st, "rotation", f.rotation, X))}
+    </div>`;
+    return step(2, "Les investissements", "immobilisations et BFR", kpis + economicBalance(f, c.cur) +
+      card("Besoin en fonds de roulement", "", bfrTable, bfrMsg + " Le BFR à la clôture n'est qu'une photo : on le lit en tendance.") +
+      card("Politique d'investissement", `M ${c.cur}`, invTable,
+        (invMsg ? invMsg + " " : "") + "Capex supérieurs aux amortissements : investissements de capacité ; égaux : maintien ; inférieurs : retrait."));
+  }
+
+  // ---------- Étape 3 : le financement ----------
+  function step3(c, f, i, st) {
+    const fcfAfter = ok(f.fcf) && ok(f.interest) ? f.fcf - f.interest * (1 - f.tUsed) : null;
+    const nd = f.ndEbitda, cov = f.coverage;
+    const ndLight = ok(f.netDebt) && f.netDebt <= 0 ? "green" : !ok(nd) ? "grey" : nd <= 3 ? "green" : nd <= 4 ? "orange" : "red";
+    const covLight = ok(f.netDebt) && f.netDebt <= 0 ? "green" : !ok(cov) ? "grey" : cov >= 3 ? "green" : cov >= 1.5 ? "orange" : "red";
+    const liqLight = !ok(f.fr) ? "grey" : f.fr >= 0 && ok(f.tresoNette) && f.tresoNette >= 0 ? "green" : f.fr >= 0 || (ok(f.tresoNette) && f.tresoNette >= 0) ? "orange" : "red";
+    const stShare = f.debtLT + f.debtST > 0 ? f.debtST / (f.debtLT + f.debtST) : null;
+    const checks = `<div class="checks">
+      <div>${light(ndLight)}<b>Dette nette / EBE : ${ok(f.netDebt) && f.netDebt <= 0 ? "trésorerie nette" : X(nd)}</b>
+        <span>Capacité de remboursement : environ 3× au plus. ${bench(st, "ndEbitda", nd, X, false)}</span></div>
+      <div>${light(covLight)}<b>Résultat d'exploitation / frais financiers : ${X(cov)}</b>
+        <span>Couverture des intérêts : au moins 3×. ${bench(st, "coverage", cov, X)}</span></div>
+      <div>${light(liqLight)}<b>Liquidité : fonds de roulement ${M(f.fr)}, trésorerie nette ${M(f.tresoNette)}</b>
+        <span>Les ressources stables doivent couvrir les emplois stables ; dettes à court terme ${ok(stShare) ? P(stShare) + " de la dette financière" : "—"}.</span></div>
+      <div>${light(!ok(fcfAfter) ? "grey" : fcfAfter >= 0 ? "green" : "red")}<b>Flux disponible après frais financiers : ${M(fcfAfter)}</b>
+        <span>Positif : l'exploitation finance ses investissements et ses intérêts ; négatif : il faut s'endetter ou augmenter le capital.</span></div>
+    </div>`;
+    return step(3, "Le financement", "autofinancement, capitaux propres, dette", card("Repères de solvabilité et de liquidité", "", checks,
+      "Repères usuels de l'analyse financière, à moduler selon le secteur et la régularité des flux.") +
+      cashFlow(f, c.cur) + financialBalance(f, c.cur));
+  }
+
+  // ---------- Étape 4 : la rentabilité ----------
+  function step4(c, f, i, st) {
+    const w = params.wacc / 100;
+    const spread = ok(f.roce) ? f.roce - w : null;
+    const eva = ok(spread) && ok(f.ae) ? spread * f.ae : null;
+    const kpis = `<div class="kpis">
+      ${kpi("ROCE après IS", P(f.roce), bench(st, "roce", f.roce, P))}
+      ${kpi("Rentabilité des capitaux propres", P(f.roe), bench(st, "roe", f.roe, P))}
+      ${kpi("Coût du capital (hypothèse)", `<input class="param" type="number" step="0.5" min="0" max="30" data-param="wacc" value="${params.wacc}"> %`)}
+      ${kpi("ROCE − coût du capital", `<span class="${ok(spread) ? (spread >= 0 ? "pos" : "neg") : ""}">${ok(spread) ? (spread >= 0 ? "+" : "") + nf1.format(spread * 100) + " pts" : "—"}</span>`)}
+      ${kpi(`Création de valeur ${state.meta.years[i]} (M ${esc(c.cur)})`, `<span class="${ok(eva) ? (eva >= 0 ? "pos" : "neg") : ""}">${M(eva)}</span>`)}
+    </div>`;
+    return step(4, "La rentabilité", "rentabilité économique, capitaux propres, effet de levier", kpis + leverage(f) +
+      `<p class="note">Création de valeur (profit économique) = (ROCE après IS − coût du capital) × actif économique. L'effet de levier augmente la rentabilité des capitaux propres mais aussi leur risque : il ne crée pas de valeur. Seule une rentabilité économique durablement supérieure au coût du capital en crée.</p>` +
+      history(c));
+  }
+
+  // ---------- Valorisation et reprise ----------
+  function valuation(c, f, i, st) {
+    if (!ok(f.ebitda) || f.ebitda <= 0) return step("€", "Valorisation et reprise", "multiple et montage LBO",
+      `<div class="card"><p class="note">EBE négatif ou inconnu : pas de valorisation par multiple possible.</p></div>`);
+    const secMult = st.evEbitda && ok(st.evEbitda.median) && st.evEbitda.sorted.length >= 5 ? st.evEbitda.median : null;
+    const mult = ok(params.mult) && params.mult > 0 ? params.mult : ok(secMult) ? Math.round(secMult * 10) / 10 : 7;
+    const ev = mult * f.ebitda;
+    const equity = ok(f.netDebt) ? ev - f.netDebt : null;
+    const debt = Math.min(params.lev * f.ebitda, ev * 0.75);
+    const equityIn = ev - debt;
+    const rate = params.rate / 100;
+    const interest = debt * rate;
+    const fcfPre = ok(f.fcf) ? f.fcf + (ok(f.interest) ? f.interest * (1 - f.tUsed) : 0) : null; // FCF avant frais financiers actuels
+    const free = ok(fcfPre) ? fcfPre - interest * (1 - f.tUsed) : null;
+    const years = ok(free) && free > 0 ? debt / free : null;
+    const own = ok(f.evEbitda) ? ` · société elle-même en Bourse : ${X(f.evEbitda)}` : "";
+    const lbLight = !ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red";
+    const body = `<div class="kpis">
+        ${kpi("Multiple VE / EBE retenu", `<input class="param" type="number" step="0.5" min="0" max="60" data-param="mult" value="${mult}">×`,
+          `<small class="bench">médiane du secteur ${ok(secMult) ? X(secMult) : "indisponible"}${own}</small>`)}
+        ${kpi(`Valeur d'entreprise (M ${esc(c.cur)})`, M(ev))}
+        ${kpi("− dette nette", M(f.netDebt))}
+        ${kpi(`= valeur des titres (M ${esc(c.cur)})`, M(equity))}
+      </div>
+      <h4 class="sub">Montage LBO indicatif</h4>
+      <div class="kpis">
+        ${kpi("Dette d'acquisition (× EBE)", `<input class="param" type="number" step="0.5" min="0" max="8" data-param="lev" value="${params.lev}">×`)}
+        ${kpi("Taux de la dette", `<input class="param" type="number" step="0.5" min="0" max="20" data-param="rate" value="${params.rate}"> %`)}
+        ${kpi(`Dette levée (M ${esc(c.cur)})`, M(debt))}
+        ${kpi(`Apport en fonds propres (M ${esc(c.cur)})`, M(equityIn), `<small class="bench">${P(equityIn / ev)} du prix</small>`)}
+        ${kpi("Flux disponible après intérêts", M(free))}
+        ${kpi("Années pour rembourser", `${light(lbLight)} ${ok(years) ? nf1.format(years) + " ans" : "impossible"}`)}
+      </div>`;
+    return step("€", "Valorisation et reprise", "multiple et montage LBO", card("Prix par multiple et capacité de reprise", "", body,
+      `Valeur d'entreprise = multiple × EBE ; on retranche la dette nette pour obtenir la valeur des titres. Multiples sectoriels :
+       sociétés américaines cotées (capitalisation déclarée à la SEC + dette nette) / EBE ; ils sont en général plus élevés que les multiples
+       de transaction de PME françaises (souvent 4 à 7×). Le remboursement suppose un flux disponible constant, sans croissance ni
+       dividende, après impôt au taux de ${P(f.tUsed)} : c'est un ordre de grandeur, pas un plan de financement. La dette est plafonnée à 75 % du prix.`));
+  }
+
+  // ---------- Synthèse ----------
+  function synthesis(c, f, i, st) {
+    const verdict = [];
+    // 1. Marges
+    const med = st.ebitdaMargin && st.ebitdaMargin.median;
+    const prev = figures(c, i - 2);
+    const trend = ok(f.ebitdaMargin) && ok(prev.ebitdaMargin) ? f.ebitdaMargin - prev.ebitdaMargin : null;
+    let s1 = "grey", t1 = "Marges non calculables.";
+    if (ok(f.ebit) && f.ebit < 0) { s1 = "red"; t1 = "Résultat d'exploitation négatif : l'entreprise ne couvre pas ses coûts."; }
+    else if (ok(f.ebitdaMargin)) {
+      const above = ok(med) ? f.ebitdaMargin >= med : true;
+      s1 = above && (!ok(trend) || trend > -0.01) ? "green" : !above && ok(trend) && trend < -0.01 ? "red" : "orange";
+      t1 = `Marge d'EBE ${P(f.ebitdaMargin)}${ok(med) ? `, ${above ? "au-dessus" : "en dessous"} de la médiane du secteur (${P(med)})` : ""}${ok(trend) ? `, ${trend >= 0 ? "en progression" : "en recul"} de ${nf1.format(Math.abs(trend) * 100)} pts sur 2 ans` : ""}.`;
+    }
+    verdict.push([1, "Marges", s1, t1]);
+    // 2. Investissements
+    const f0 = figures(c, i - 3);
+    const dBfr = ok(f.bfrDays) && ok(f0.bfrDays) ? f.bfrDays - f0.bfrDays : null;
+    let s2 = "grey", t2 = "Investissements non analysables.";
+    if (ok(f.bfrDays) || ok(f.capexDa)) {
+      s2 = ok(dBfr) && dBfr > 10 ? "orange" : "green";
+      if (ok(f.rotation) && st.rotation && ok(st.rotation.median) && f.rotation < st.rotation.median * 0.7) s2 = "orange";
+      t2 = `BFR ${D(f.bfrDays)} de CA${ok(dBfr) ? ` (${dBfr >= 0 ? "+" : ""}${nf0.format(dBfr)} j en 3 ans)` : ""} ; investissements de ${capexNature(f.capexDa)}${ok(f.capexDa) ? ` (${X(f.capexDa)} les amortissements)` : ""} ; rotation de l'actif ${X(f.rotation)}.`;
+    }
+    verdict.push([2, "Investissements", s2, t2]);
+    // 3. Financement
+    const cash = ok(f.netDebt) && f.netDebt <= 0;
+    let s3 = "grey", t3 = "Endettement non calculable.";
+    if (cash) { s3 = "green"; t3 = `Trésorerie nette de ${M(-f.netDebt)} : aucun risque d'endettement.`; }
+    else if (ok(f.ndEbitda)) {
+      s3 = f.ndEbitda <= 3 && (!ok(f.coverage) || f.coverage >= 3) ? "green" : f.ndEbitda > 4 || (ok(f.coverage) && f.coverage < 1.5) ? "red" : "orange";
+      t3 = `Dette nette / EBE ${X(f.ndEbitda)}, couverture des intérêts ${X(f.coverage)} (repères : ≤ 3× et ≥ 3×).`;
+    }
+    verdict.push([3, "Financement", s3, t3]);
+    // 4. Rentabilité
+    const w = params.wacc / 100;
+    let s4 = "grey", t4 = "Rentabilité non calculable.";
+    if (ok(f.roce)) {
+      s4 = f.roce >= w + 0.02 ? "green" : f.roce >= w - 0.01 ? "orange" : "red";
+      t4 = `ROCE après IS ${P(f.roce)} pour un coût du capital supposé de ${P(w)} ; ROE ${P(f.roe)}.`;
+    }
+    verdict.push([4, "Rentabilité", s4, t4]);
+    // Conclusion
+    const solv = s3 === "green" && (!ok(f.fcf) || f.fcf >= 0) ? ["green", "Solvable : la dette est remboursable par l'exploitation."]
+      : s3 === "red" ? ["red", "Solvabilité fragile : endettement élevé au regard de l'EBE."]
+        : s3 === "grey" ? ["grey", "Solvabilité non évaluable."] : ["orange", "Solvabilité à surveiller."];
+    const val = s4 === "green" ? ["green", "Crée de la valeur : rentabilité économique supérieure au coût du capital."]
+      : s4 === "red" ? ["red", "Détruit de la valeur : rentabilité économique inférieure au coût du capital."]
+        : s4 === "grey" ? ["grey", "Création de valeur non évaluable."] : ["orange", "Création de valeur à la limite."];
+    return `<div class="card synth"><h3>Synthèse ${state.meta.years[i]} <small>— plan d'analyse en 4 étapes</small></h3>
+      <div class="synth-grid">${verdict.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
+      <div class="synth-concl">
+        <div>${light(solv[0])}<b>Solvabilité</b> <span>${solv[1]}</span></div>
+        <div>${light(val[0])}<b>Création de valeur</b> <span>${val[1]}</span></div>
+      </div>
+      <p class="note">Comparaison avec ${st.n} sociétés du secteur « ${esc(state.meta.sectors[c.s])} » (France et USA). Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
+      <details class="method"><summary>Le plan d'analyse en 4 étapes</summary>${METHOD_HTML}</details></div>`;
+  }
+
+  function render(c, i) {
+    const f = figures(c, i);
+    const st = sectorStats(c.s, i);
+    return synthesis(c, f, i, st) + step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + valuation(c, f, i, st);
+  }
+
+  // Texte de la méthode, affiché dans l'onglet Méthode et dans chaque fiche.
+  const METHOD_HTML = `
+    <p>L'analyse financière répond à deux questions : <b>l'entreprise crée-t-elle de la valeur</b> (point de vue de l'actionnaire)
+    et <b>peut-elle rembourser ses dettes</b> (point de vue du prêteur) ? La méthode est la même dans les deux cas.</p>
+    <p><b>Deux préalables</b> : comprendre l'économie de l'entreprise (son marché, sa position, sa façon de produire) et vérifier
+    que la comptabilité reflète bien cette réalité.</p>
+    <p><b>Puis le plan en 4 étapes</b>, chacune menant à la suivante :</p>
+    <ol>
+      <li><b>Les marges</b> (la création de richesse) : croissance du CA, effets ciseaux, valeur ajoutée, EBE, résultat d'exploitation.
+        Le <b>point mort</b> mesure le risque : plus l'entreprise en est loin, plus son bénéfice est stable.</li>
+      <li><b>Les investissements</b> nécessaires : le BFR, analysé en jours (clients, stocks, fournisseurs) et toujours en évolution,
+        ainsi que les immobilisations. Un investissement supérieur aux amortissements est un investissement de <b>capacité</b>,
+        égal un investissement de <b>maintien</b>, inférieur un <b>retrait</b>.</li>
+      <li><b>Le financement</b> : le tableau de flux est l'outil central. Deux repères : <b>dette nette / EBE inférieure à environ 3</b>
+        et <b>résultat d'exploitation / frais financiers supérieur à environ 3</b>. Il faut aussi regarder la liquidité
+        (échéances des dettes face à celles des actifs).</li>
+      <li><b>La rentabilité</b> : ROCE = marge × rotation, puis l'effet de levier. Le levier ne crée pas de valeur :
+        il augmente le ROE mais aussi le risque. Seule une bonne rentabilité économique dure.</li>
+    </ol>
+    <p><b>Conclusion</b> : solvabilité, puis <b>création de valeur</b>, c'est-à-dire ROCE comparé au <b>coût du capital</b>.
+    Pour une reprise, la valeur vient ensuite d'un <b>multiple de l'EBE ou du résultat d'exploitation</b>, moins la dette nette.
+    Le montage en LBO dépend de la capacité de la cible à rembourser sa dette avec son flux de trésorerie disponible.</p>
+    <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents
+    du secteur) et <b>par rapport à des normes</b> (les repères ci-dessus).</p>`;
+
+  function setParam(name, value) {
+    const v = Number(String(value).replace(",", "."));
+    params[name] = Number.isFinite(v) && v > 0 ? v : (name === "mult" ? null : params[name]);
+    saveParams();
+  }
+  return { render, figures, methodHtml: METHOD_HTML, params, setParam };
 })();

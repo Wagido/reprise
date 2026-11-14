@@ -374,6 +374,14 @@ function openDetail(c, yearIdx, tab) {
     </div>
     <div class="chips">${tabs}<span class="sep"></span>${tab === "analyse" ? chips : ""}</div>
     ${tab === "analyse" ? Analyse.render(c, i) : comptes}`;
+  $("detailBody").onchange = (e) => {
+    const p = e.target.dataset && e.target.dataset.param;
+    if (!p) return;
+    Analyse.setParam(p, e.target.value);
+    const scroll = $("detail").querySelector(".detail-inner").scrollTop;
+    openDetail(c, i, tab);
+    $("detail").querySelector(".detail-inner").scrollTop = scroll;
+  };
   $("detailBody").onclick = (e) => {
     const b = e.target.closest("button.chip");
     if (!b) return;
@@ -512,6 +520,7 @@ async function init() {
   const { meta } = state;
   const date = new Date(meta.generated).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   $("dataInfo").textContent = `${nf0.format(meta.counts.FR)} sociétés françaises, ${nf0.format(meta.counts.US)} américaines · données du ${date}`;
+  $("methodPlan").innerHTML = Analyse.methodHtml;
   $("sector").innerHTML += Object.entries(meta.sectors).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   $("year").innerHTML = [...meta.years].reverse().map((y) => `<option>${y}</option>`).join("");
   $("year").value = String(defaultYear());

@@ -201,3 +201,40 @@ svg text { fill: var(--muted); font-size: 11px; }
   .lv-op { flex-basis: 100%; text-align: center; line-height: 1; }
 }
 .desc.est { border-left: 3px solid var(--c-bfr); padding-left: 8px; }
+
+/* ---------- Plan en 4 étapes ---------- */
+.step { margin: 22px 0 6px; }
+.step-h { display: flex; align-items: baseline; gap: 10px; font-size: 18px; margin: 0 0 10px; flex-wrap: wrap; }
+.step-h small { font-size: 13px; font-weight: 400; color: var(--muted); }
+.num {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--panel); font-size: 13px; font-weight: 700;
+}
+.kpi small, .bench { display: block; font-size: 11.5px; color: var(--muted); margin-top: 3px; font-weight: 400; }
+.kpi b small { display: inline; font-size: 12px; color: var(--muted); }
+h4.sub { margin: 14px 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+input.param {
+  width: 64px; font: inherit; font-size: 17px; font-weight: 700; padding: 1px 4px; border: 1px solid var(--accent);
+  border-radius: 5px; background: var(--accent-soft); color: var(--ink);
+}
+.light { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; margin-right: 6px; vertical-align: -1px; background: var(--c-other); }
+.light.green { background: var(--good); } .light.orange { background: var(--c-bfr); } .light.red { background: var(--bad); }
+.checks { display: grid; gap: 10px; }
+.checks > div { display: grid; grid-template-columns: 18px 1fr; gap: 2px 4px; align-items: start; }
+.checks > div .light { margin-top: 4px; }
+.checks b { font-variant-numeric: tabular-nums; }
+.checks span { grid-column: 2; color: var(--muted); font-size: 12.5px; }
+.checks .bench { display: inline; }
+.synth { border: 1px solid var(--accent); }
+.synth-grid { display: grid; gap: 8px; }
+.synth-row { display: grid; grid-template-columns: 26px 18px 1fr; gap: 6px; align-items: start; }
+.synth-row .light { margin-top: 7px; }
+.synth-row b { display: block; }
+.synth-row span { color: var(--muted); font-size: 13px; }
+.synth-concl { display: grid; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.synth-concl span { color: var(--muted); font-size: 13px; }
+details.method { margin-top: 10px; font-size: 13.5px; }
+details.method summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+details.method ol { padding-left: 20px; }
+details.method li { margin-bottom: 6px; }
+#methodPlan ol { padding-left: 20px; } #methodPlan li { margin-bottom: 6px; }

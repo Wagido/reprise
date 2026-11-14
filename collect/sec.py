@@ -90,6 +90,21 @@ def collect(years, max_sic=None, log=print):
             for y, e in ends.get(old_cik, {}).items():
                 ends.setdefault(new_cik, {}).setdefault(y, e)
 
+    # Capitalisation : « public float » déclaré en couverture du 10-K (valeur des
+    # actions hors initiés, à la fin du 2e trimestre). Approximation de la
+    # capitalisation boursière, utilisée pour les multiples sectoriels.
+    floats = {}
+    for year in years:
+        period = f"CY{year}Q2I"
+        frame = get_json(f"https://data.sec.gov/api/xbrl/frames/dei/EntityPublicFloat/USD/{period}.json",
+                         cache_name=f"sec/frames/dei_EntityPublicFloat_{period}.json.gz",
+                         max_age_days=7 if year in recent else None, min_interval=0.12)
+        for row in (frame or {}).get("data", []):
+            floats.setdefault(row["cik"], {})[year] = row["val"]
+    for new_cik, old_cik in SUCCESSORS.items():
+        for y, v in floats.get(old_cik, {}).items():
+            floats.setdefault(new_cik, {}).setdefault(y, v)
+
     tickers = get_json(TICKERS, cache_name="sec/company_tickers_exchange.json.gz", max_age_days=7)
     listing = {}
     for cik, name, ticker, exchange in tickers["data"]:
@@ -103,6 +118,9 @@ def collect(years, max_sic=None, log=print):
         if cik not in listing:
             continue
         rows = {y: resolve(US_GAAP, vals) for y, vals in by_year.items()}
+        for y, v in floats.get(cik, {}).items():
+            if y in rows and v and v > 0:
+                rows[y]["market_cap"] = v
         if not any("revenue" in r for r in rows.values()):
             continue
         ticker, exchange, short = listing[cik]
