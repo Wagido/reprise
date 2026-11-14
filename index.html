@@ -30,6 +30,7 @@
       <button role="tab" aria-selected="true" data-view="list" data-in="invest">Sociétés</button>
       <button role="tab" aria-selected="false" data-view="pick" data-in="invest">Stock picking</button>
       <button role="tab" aria-selected="false" data-view="sectors" data-in="invest">Secteurs</button>
+      <button role="tab" aria-selected="false" data-view="nuages" data-in="invest">Nuages</button>
       <button role="tab" aria-selected="false" data-view="compare" data-in="invest">Comparer</button>
       <button role="tab" aria-selected="false" data-view="pme" data-in="reprise">Carte des PME</button>
       <button role="tab" aria-selected="false" data-view="lbo" data-in="reprise">Simulateur LBO</button>
@@ -108,6 +109,7 @@
   </section>
 
   <section id="view-pick" class="view" hidden><div id="pickOut"></div></section>
+  <section id="view-nuages" class="view" hidden><div id="nuageOut"></div></section>
 
   <section id="view-lbo" class="view" hidden>
     <p class="count">Reprise à titre personnel : une holding achète la société, financée par ton apport, un prêt d'honneur, un crédit-vendeur et une dette bancaire, remboursée par les dividendes de la cible. Depuis une fiche PME, « Simuler la reprise » remplit la cible automatiquement.</p>
@@ -154,5 +156,6 @@
 <script src="pme.js"></script>
 <script src="lbo.js"></script>
 <script src="picking.js"></script>
+<script src="nuages.js"></script>
 </body>
 </html>

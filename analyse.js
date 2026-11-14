@@ -88,7 +88,11 @@ const Analyse = (() => {
         const fl = (c.v.market_cap || []).filter(ok);
         const lastFloat = fl.length ? fl[fl.length - 1] : null;
         const live = c.px && c.px[0] && c.px[1] ? c.px[0] * c.px[1] / 1e6 : null;
-        if (ok(live) && (!ok(lastFloat) || live >= 0.5 * lastFloat)) return { mcap: live, mcapLive: true };
+        // Cohérence : entre 0,3× et 3× la capitalisation déclarée ; sans déclaration, au plus 50× le CA.
+        const rv = (c.v.revenue || []).filter(ok), lastRev = rv.length ? rv[rv.length - 1] : null;
+        const sane = ok(live) && (ok(lastFloat) ? live >= 0.3 * lastFloat && live <= 3 * lastFloat
+          : !ok(lastRev) || lastRev <= 0 || live <= 50 * lastRev);
+        if (sane) return { mcap: live, mcapLive: true };
         return { mcap: ok(lastFloat) && i === state.meta.years.length - 1 ? lastFloat : g("market_cap") ?? lastFloat, mcapLive: false };
       })(),
       // Fiche 2 : état de l'outil industriel = immobilisations nettes / brutes.
@@ -418,8 +422,63 @@ const Analyse = (() => {
   const kpi = (label, value, extra = "") => `<div class="kpi"><b>${value}</b><span>${label}</span>${extra}</div>`;
   const D = (v) => (ok(v) ? nf0.format(v) + " j" : "—");
   const light = (state) => `<i class="light ${state}" aria-label="${state === "green" ? "bon" : state === "orange" ? "à surveiller" : state === "red" ? "alerte" : "inconnu"}"></i>`;
+  // Chaque étape est repliable : on lit d'abord le résumé, on ouvre le détail au besoin.
   function step(n, title, sub, body) {
-    return `<section class="step"><h2 class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small></h2>${body}</section>`;
+    return `<details class="step"><summary class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small><span class="open-hint">détail</span></summary>${body}</details>`;
+  }
+
+  // Valeur estimée des capitaux propres : multiple sectoriel et flux actualisés (même méthode que le stock picking).
+  function fairValue(c, f, i, st) {
+    const medEv = st.evEbitda && st.evEbitda.median;
+    const sector = ok(medEv) && ok(f.ebitda) && f.ebitda > 0 && ok(f.netDebt) ? medEv * f.ebitda - f.netDebt : null;
+    const fcfs = [0, 1, 2].map((k) => figures(c, i - k).fcf).filter(ok);
+    const fcf = fcfs.length ? fcfs.reduce((a, b) => a + b, 0) / fcfs.length : null;
+    const w = params.wacc / 100, g = 0.03, gT = Math.min(0.02, w - 0.01);
+    let dcf = null;
+    if (ok(fcf) && fcf > 0 && ok(f.netDebt) && w > gT) {
+      let v = 0, cf = fcf;
+      for (let t = 1; t <= 5; t++) { cf *= 1 + g; v += cf / Math.pow(1 + w, t); }
+      dcf = v + cf * (1 + gT) / (w - gT) / Math.pow(1 + w, 5) - f.netDebt;
+    }
+    return { sector: ok(sector) && sector > 0 ? sector : null, dcf: ok(dcf) && dcf > 0 ? dcf : null };
+  }
+
+  function valueBar(c, f, fv) {
+    const vals = [fv.sector, fv.dcf].filter(ok);
+    if (!ok(f.mcap) || !vals.length) return "";
+    const fair = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const gap = f.mcap / fair - 1;
+    const max = Math.max(f.mcap, ...vals) * 1.15;
+    const x = (v) => Math.min(100, v / max * 100);
+    const zone = gap <= -0.2 ? ["green", `${nf0.format(-gap * 100)} % sous la valeur estimée`] : gap >= 0.2 ? ["red", `${nf0.format(gap * 100)} % au-dessus de la valeur estimée`] : ["orange", "proche de la valeur estimée (± 20 %)"];
+    return `<div class="vbar">
+      <div class="vbar-track">
+        <div class="vbar-zone z1" style="left:0;width:${x(fair * 0.8)}%"></div>
+        <div class="vbar-zone z2" style="left:${x(fair * 0.8)}%;width:${x(fair * 1.2) - x(fair * 0.8)}%"></div>
+        <div class="vbar-zone z3" style="left:${x(fair * 1.2)}%;right:0"></div>
+        <div class="vbar-mark price" style="left:${x(f.mcap)}%"><span>Cours<br><b>${M(f.mcap)}</b></span></div>
+        <div class="vbar-mark fair" style="left:${x(fair)}%"><span>Valeur estimée<br><b>${M(fair)}</b></span></div>
+      </div>
+      <p class="vbar-txt">${light(zone[0])}<b>Le cours est ${zone[1]}.</b> <small>Moyenne de la valeur par le multiple du secteur (${M(fv.sector)}) et par les flux actualisés (${M(fv.dcf)}), en M ${esc(c.cur)}.</small></p>
+    </div>`;
+  }
+
+  // Résumé en langage courant, à partir des mêmes chiffres que les 4 étapes.
+  function summary(c, f, i, st) {
+    const sec = state.meta.sectors[c.s] || "";
+    const med = (k) => st[k] && st[k].median;
+    const cmp = (v, m, hib = true) => (!ok(v) || !ok(m) ? "" : (hib ? v >= m : v <= m) ? "mieux que la moyenne du secteur" : "moins bien que la moyenne du secteur");
+    const size = !ok(f.rev) ? "" : f.rev >= 10000 ? "un géant" : f.rev >= 1000 ? "une grande entreprise" : f.rev >= 100 ? "une entreprise moyenne" : "une petite entreprise";
+    const lines = [];
+    lines.push(`<b>${esc(c.n)}</b> est ${size} du secteur ${esc(sec.split(/[,(]/)[0].trim().toLowerCase())} : ${M(f.rev)} M ${esc(c.cur)} de chiffre d'affaires${ok(f.growth) ? `, ${f.growth >= 0.02 ? "en croissance" : f.growth <= -0.02 ? "en recul" : "stable"} (${P(f.growth)} par an sur 3 ans)` : ""}.`);
+    if (ok(f.ebitdaMargin)) lines.push(`Elle garde ${P(f.ebitdaMargin)} de son CA en EBE, ${cmp(f.ebitdaMargin, med("ebitdaMargin"))}${ok(f.roce) ? ` ; son capital rapporte ${P(f.roce)} par an après impôt, ce qui ${f.roce >= params.wacc / 100 ? "<b>crée de la valeur</b>" : "<b>ne couvre pas</b> le coût du capital"}` : ""}.`);
+    const solid = ok(f.netDebt) && f.netDebt <= 0 ? "Pas de dette nette : trésorerie disponible."
+      : ok(f.ndEbitda) ? `Sa dette nette représente ${X(f.ndEbitda)} son EBE : ${f.ndEbitda <= 2 ? "endettement léger" : f.ndEbitda <= 3.5 ? "endettement raisonnable" : "endettement lourd"}.` : "";
+    if (solid) lines.push(solid + (ok(f.zScore) ? ` Risque de défaillance ${f.zScore > 2.6 ? "faible" : f.zScore >= 1.1 ? "modéré" : "élevé"} (Altman ${nf1.format(f.zScore)}).` : ""));
+    if (ok(f.per) || ok(f.evEbitda)) lines.push(`En Bourse, elle vaut ${M(f.mcap)} M ${esc(c.cur)}${ok(f.per) ? `, soit ${nf0.format(f.per)} ans de bénéfices (PER)` : ""}${ok(f.evEbitda) && ok(med("evEbitda")) ? ` ; elle est ${f.evEbitda <= med("evEbitda") ? "moins chère" : "plus chère"} que son secteur (VE / EBE ${X(f.evEbitda)} contre ${X(med("evEbitda"))})` : ""}.`);
+    const fv = fairValue(c, f, i, st);
+    return `<div class="card resume"><h3>En 30 secondes <small>— exercice ${state.meta.years[i]}</small></h3>
+      ${lines.map((l) => `<p>${l}</p>`).join("")}${valueBar(c, f, fv)}</div>`;
   }
   function seriesFor(c, fn) {
     const ys = state.meta.years;
@@ -836,7 +895,7 @@ const Analyse = (() => {
   function render(c, i) {
     const f = figures(c, i);
     const st = sectorStats(c.s, i);
-    return synthesis(c, f, i, st) + qualityCard(c, f, i, st) + step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + valuation(c, f, i, st);
+    return summary(c, f, i, st) + synthesis(c, f, i, st) + qualityCard(c, f, i, st) + `<p class="note steps-hint">Le détail de l'analyse, étape par étape (cliquer pour ouvrir) :</p>` + step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + valuation(c, f, i, st);
   }
 
   // Texte de la méthode, affiché dans l'onglet Méthode et dans chaque fiche.

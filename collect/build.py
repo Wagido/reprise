@@ -168,6 +168,15 @@ def main():
             if "operating_income" not in r and "pretax" in r and "interest" in r:
                 r["operating_income"] = r["pretax"] + r["interest"]
                 est.add("operating_income")
+        # Capitalisation déclarée à la SEC : certaines déclarations sont fausses d'un facteur 1 000
+        # (erreur d'unité). On écarte les valeurs incohérentes avec le CA ou avec les autres années.
+        caps = [r.get("market_cap") for r in c["years"].values() if r.get("market_cap")]
+        if caps:
+            med = sorted(caps)[len(caps) // 2]
+            for y, r in c["years"].items():
+                v, rev = r.get("market_cap"), r.get("revenue")
+                if v and ((rev and rev > 0 and v > 50 * rev) or v > 30 * med):
+                    del r["market_cap"]
         values = {}
         for f in fields:
             row = []

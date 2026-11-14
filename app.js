@@ -198,28 +198,54 @@ const COLS = [
   { key: "sector", label: "Secteur", cls: "l hide-sm", get: (r) => state.meta.sectors[r.c.s], fmt: (r) => esc(shortSector(r.c.s)) },
   { key: "score", label: "Score", get: (r) => r.score, fmt: (r) => (ok(r.score) ? `<span class="score">${r.score}</span>` : '<span class="na">—</span>') },
   { key: "rev", label: "CA M€", get: (r) => r.m.rev, fmt: (r) => money(r.m.rev) },
-  { key: "growth", label: "Crois. 3 ans", get: (r) => r.m.growth, fmt: (r) => pct(r.m.growth, true) },
-  { key: "ebitda", label: "EBITDA M€", get: (r) => r.m.ebitda, fmt: (r) => money(r.m.ebitda) },
-  { key: "ebitdaMargin", label: "Marge EBITDA", get: (r) => r.m.ebitdaMargin, fmt: (r) => pct(r.m.ebitdaMargin, true) },
-  { key: "netMargin", label: "Marge nette", get: (r) => r.m.netMargin, fmt: (r) => pct(r.m.netMargin, true) },
-  { key: "fcf", label: "FCF M€", get: (r) => r.m.fcf, fmt: (r) => money(r.m.fcf) },
-  { key: "conversion", label: "Conv. cash", get: (r) => r.m.conversion, fmt: (r) => pct(r.m.conversion, true) },
-  { key: "netDebt", label: "Dette nette M€", get: (r) => r.m.netDebt, fmt: (r) => money(r.m.netDebt) },
-  { key: "leverage", label: "DN/EBITDA", get: (r) => r.m.leverage, fmt: (r) => mult(r.m.leverage) },
-  { key: "roce", label: "ROCE", get: (r) => r.m.roce, fmt: (r) => pct(r.m.roce, true) },
-  { key: "bfrDays", label: "BFR", get: (r) => r.m.bfrDays, fmt: (r) => days(r.m.bfrDays) },
-  { key: "per", label: "PER", get: (r) => r.per, fmt: (r) => (ok(r.per) ? nf1.format(r.per) : '<span class="na">—</span>') },
-  { key: "evx", label: "VE/EBE", get: (r) => r.evx, fmt: (r) => (ok(r.evx) ? nf1.format(r.evx) + "×" : '<span class="na">—</span>') },
-  { key: "fscore", label: "Piotroski", get: (r) => r.fs, fmt: (r) => (ok(r.fs) ? `${r.fs}/9` : '<span class="na">—</span>') },
-  { key: "z", label: "Altman", get: (r) => r.z, fmt: (r) => (ok(r.z) ? `<span class="${r.z > 2.6 ? "pos" : r.z < 1.1 ? "neg" : ""}">${nf1.format(r.z)}</span>` : '<span class="na">—</span>') },
+  { hib: true, key: "growth", label: "Crois. 3 ans", get: (r) => r.m.growth, fmt: (r) => pct(r.m.growth, true) },
+  { extra: true, key: "ebitda", label: "EBITDA M€", get: (r) => r.m.ebitda, fmt: (r) => money(r.m.ebitda) },
+  { hib: true, key: "ebitdaMargin", label: "Marge EBITDA", get: (r) => r.m.ebitdaMargin, fmt: (r) => pct(r.m.ebitdaMargin, true) },
+  { hib: true, key: "netMargin", label: "Marge nette", get: (r) => r.m.netMargin, fmt: (r) => pct(r.m.netMargin, true) },
+  { extra: true, key: "fcf", label: "FCF M€", get: (r) => r.m.fcf, fmt: (r) => money(r.m.fcf) },
+  { extra: true, hib: true, key: "conversion", label: "Conv. cash", get: (r) => r.m.conversion, fmt: (r) => pct(r.m.conversion, true) },
+  { extra: true, key: "netDebt", label: "Dette nette M€", get: (r) => r.m.netDebt, fmt: (r) => money(r.m.netDebt) },
+  { hib: false, key: "leverage", label: "DN/EBITDA", get: (r) => r.m.leverage, fmt: (r) => mult(r.m.leverage) },
+  { hib: true, key: "roce", label: "ROCE", get: (r) => r.m.roce, fmt: (r) => pct(r.m.roce, true) },
+  { extra: true, hib: false, key: "bfrDays", label: "BFR", get: (r) => r.m.bfrDays, fmt: (r) => days(r.m.bfrDays) },
+  { hib: false, key: "per", label: "PER", get: (r) => r.per, fmt: (r) => (ok(r.per) ? nf1.format(r.per) : '<span class="na">—</span>') },
+  { extra: true, hib: false, key: "evx", label: "VE/EBE", get: (r) => r.evx, fmt: (r) => (ok(r.evx) ? nf1.format(r.evx) + "×" : '<span class="na">—</span>') },
+  { extra: true, hib: true, key: "fscore", label: "Piotroski", get: (r) => r.fs, fmt: (r) => (ok(r.fs) ? `${r.fs}/9` : '<span class="na">—</span>') },
+  { extra: true, hib: true, key: "z", label: "Altman", get: (r) => r.z, fmt: (r) => (ok(r.z) ? `<span class="${r.z > 2.6 ? "pos" : r.z < 1.1 ? "neg" : ""}">${nf1.format(r.z)}</span>` : '<span class="na">—</span>') },
 ];
 
 function shortSector(s) {
   return (state.meta.sectors[s] || s).split(/[ ,(]/)[0].replace(/\.$/, "") + (s === "conso_cyc" ? ". discr." : s === "conso_base" ? ". base" : "");
 }
 
+// Colonnes affichées : l'essentiel par défaut, tout sur demande.
+function visibleCols() {
+  let all = false;
+  try { all = localStorage.getItem("reprise.allcols") === "1"; } catch (e) { /* ignoré */ }
+  return COLS.filter((c) => all || !c.extra);
+}
+
+// Quartiles par colonne sur les sociétés affichées : vert = quart supérieur, rouge = quart inférieur.
+function quartiles(rows) {
+  const q = {};
+  for (const c of COLS) {
+    if (c.hib === undefined) continue;
+    const v = rows.map((r) => c.get(r)).filter(ok).sort((x, y) => x - y);
+    if (v.length >= 8) q[c.key] = [v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
+  }
+  return q;
+}
+function tint(c, r, q) {
+  const t = q[c.key], v = c.get(r);
+  if (!t || !ok(v)) return "";
+  const good = c.hib ? v >= t[1] : v <= t[0], bad = c.hib ? v <= t[0] : v >= t[1];
+  // Un levier négatif = trésorerie nette : bon, pas mauvais.
+  if (c.key === "leverage" && v < 0) return " q-good";
+  return good ? " q-good" : bad ? " q-bad" : "";
+}
+
 function renderHead() {
-  $("thead").innerHTML = COLS.map((c) => {
+  $("thead").innerHTML = visibleCols().map((c) => {
     const on = state.sort.key === c.key;
     return `<th data-key="${c.key}" class="${c.cls || ""} ${on ? "sorted" : ""}">${c.label}${on ? (state.sort.dir < 0 ? " ↓" : " ↑") : ""}</th>`;
   }).join("");
@@ -243,8 +269,13 @@ function renderList() {
   const n = state.rows.length;
   $("count").textContent = `${nf0.format(n)} société${n > 1 ? "s" : ""} — exercice ${$("year").value}. Cliquer une ligne pour la fiche, un titre de colonne pour trier.`;
   const rows = state.rows.slice(0, state.shown);
+  const q = quartiles(state.rows), vc = visibleCols();
   $("tbody").innerHTML = rows.map((r, k) =>
-    `<tr data-k="${k}">${COLS.map((c) => `<td class="${c.cls || ""}">${c.fmt(r)}</td>`).join("")}</tr>`).join("");
+    `<tr data-k="${k}">${vc.map((c) => `<td class="${c.cls || ""}${tint(c, r, q)}">${c.fmt(r)}</td>`).join("")}</tr>`).join("");
+  let all = false;
+  try { all = localStorage.getItem("reprise.allcols") === "1"; } catch (e) { /* ignoré */ }
+  $("count").innerHTML = `${$("count").textContent} <button class="ghost linkbtn" id="allCols">${all ? "Moins de colonnes" : "Toutes les colonnes"}</button>
+    <span class="qlegend"><i class="q-good"></i>quart supérieur <i class="q-bad"></i>quart inférieur</span>`;
   $("more").hidden = n <= state.shown;
   $("more").textContent = `Afficher plus (${nf0.format(n - state.shown)} restantes)`;
 }
@@ -587,6 +618,7 @@ function render() {
   else if (state.view === "sectors") renderSectors();
   else if (state.view === "compare") renderCompare();
   else if (state.view === "pick") Picking.render();
+  else if (state.view === "nuages") Nuages.render();
   saveFilters();
 }
 
@@ -596,7 +628,7 @@ function onFilter() {
   timer = setTimeout(() => { state.shown = PAGE; render(); }, 150);
 }
 
-const SPACE_OF = { list: "invest", pick: "invest", sectors: "invest", compare: "invest", pme: "reprise", lbo: "reprise", help: "method" };
+const SPACE_OF = { list: "invest", pick: "invest", nuages: "invest", sectors: "invest", compare: "invest", pme: "reprise", lbo: "reprise", help: "method" };
 const lastView = { invest: "list", reprise: "pme", method: "help" };
 
 function setView(v) {
@@ -608,12 +640,13 @@ function setView(v) {
     b.hidden = b.dataset.in !== space;
     b.setAttribute("aria-selected", String(b.dataset.view === v));
   });
-  for (const s of ["list", "sectors", "compare", "pick", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  for (const s of ["list", "sectors", "compare", "pick", "nuages", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
   $("filters").hidden = space !== "invest";
   document.body.dataset.space = space;
   if (v === "pme") PME.show();
   if (v === "lbo") LBO.mount();
   if (v === "pick") Picking.mount();
+  if (v === "nuages") Nuages.mount();
   try { localStorage.setItem("reprise.view", v); } catch (e) { /* ignoré */ }
   render();
 }
@@ -630,6 +663,11 @@ function bind() {
     onFilter();
   };
   $("csv").onclick = exportCsv;
+  $("view-list").addEventListener("click", (e) => {
+    if (e.target.id !== "allCols") return;
+    try { localStorage.setItem("reprise.allcols", localStorage.getItem("reprise.allcols") === "1" ? "0" : "1"); } catch (er) { /* ignoré */ }
+    renderList();
+  });
   $("more").onclick = () => { state.shown += PAGE; renderList(); };
   $("thead").onclick = (e) => {
     const th = e.target.closest("th");

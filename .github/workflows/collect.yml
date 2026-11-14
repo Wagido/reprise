@@ -52,7 +52,7 @@ jobs:
       - name: Site
         run: |
           mkdir -p _site/data
-          cp index.html app.js analyse.js pme.js lbo.js picking.js style.css sw.js manifest.webmanifest icon.svg _site/
+          cp index.html app.js analyse.js pme.js lbo.js picking.js nuages.js style.css sw.js manifest.webmanifest icon.svg _site/
           cp -r lib _site/
           cp data/companies.json data/pme.json _site/data/
       - uses: actions/upload-pages-artifact@v3

@@ -323,3 +323,54 @@ table.watch input[type="text"] { width: 180px; }
   .spaces button small { display: none; }
   .tabs { overflow-x: auto; }
 }
+
+/* ---------- Nuages (palette validée : bleu / orange, clair et sombre) ---------- */
+:root { --fr: #2a78d6; --us: #eb6834; }
+@media (prefers-color-scheme: dark) { :root { --fr: #3987e5; --us: #d95926; } }
+#nuage { width: 100%; height: auto; display: block; }
+#nuage .grid { stroke: var(--line); } #nuage .grid.zero { stroke: var(--muted); }
+#nuage .ax { fill: var(--muted); font-size: 11px; } #nuage .ax.t { font-size: 12px; }
+#nuage .iso { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: .7; }
+#nuage .iso-l { fill: var(--muted); font-size: 11px; }
+#nuage .lbl { fill: var(--ink); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; pointer-events: none; }
+#nuage circle.pt { cursor: pointer; }
+circle.full.g-cac { fill: var(--fr); stroke: var(--panel); stroke-width: 1.5; }
+circle.full.g-sp { fill: var(--us); stroke: var(--panel); stroke-width: 1.5; fill-opacity: .85; }
+circle.ring.g-fr { fill: none; stroke: var(--fr); stroke-width: 1.4; }
+circle.ring.g-us { fill: none; stroke: var(--us); stroke-width: 1; stroke-opacity: .55; }
+#nuage circle.pt:hover { stroke: var(--ink); stroke-width: 2; stroke-opacity: 1; }
+.nlegend { gap: 6px; }
+.nlegend .lg { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12.5px; color: var(--ink); }
+.nlegend .lg[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+
+/* ---------- Lecture digeste : résumé, barre de valeur, étapes repliables ---------- */
+.resume p { margin: 0 0 8px; line-height: 1.55; font-size: 14.5px; }
+details.step { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+details.step > summary { list-style: none; cursor: pointer; margin: 0; }
+details.step > summary::-webkit-details-marker { display: none; }
+details.step[open] > summary { margin-bottom: 10px; }
+details.step .open-hint { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--accent); }
+details.step .open-hint::after { content: " ▾"; }
+details.step[open] .open-hint::after { content: " ▴"; }
+.steps-hint { margin-top: 16px; }
+.vbar { margin-top: 12px; }
+.vbar-track { position: relative; height: 34px; border-radius: 6px; overflow: visible; margin: 46px 0 8px; }
+.vbar-zone { position: absolute; top: 0; bottom: 0; }
+.vbar-zone.z1 { background: color-mix(in srgb, var(--good) 28%, transparent); border-radius: 6px 0 0 6px; }
+.vbar-zone.z2 { background: color-mix(in srgb, var(--c-bfr) 28%, transparent); }
+.vbar-zone.z3 { background: color-mix(in srgb, var(--bad) 22%, transparent); border-radius: 0 6px 6px 0; }
+.vbar-mark { position: absolute; top: -4px; bottom: -4px; width: 3px; background: var(--ink); transform: translateX(-1px); }
+.vbar-mark.fair { background: var(--accent); }
+.vbar-mark span { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11.5px; text-align: center; color: var(--muted); padding-bottom: 2px; }
+.vbar-mark.fair span { bottom: auto; top: 100%; padding-top: 2px; }
+.vbar-txt { margin: 46px 0 0; font-size: 13.5px; }
+.vbar-txt small { color: var(--muted); }
+
+/* ---------- Tableau digeste ---------- */
+td.q-good { background: color-mix(in srgb, var(--good) 14%, transparent); }
+td.q-bad { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; text-decoration: underline; padding: 0 6px; font-size: 13px; }
+.qlegend { font-size: 12px; color: var(--muted); margin-left: 8px; }
+.qlegend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 4px 0 8px; }
+.qlegend i.q-good { background: color-mix(in srgb, var(--good) 30%, transparent); }
+.qlegend i.q-bad { background: color-mix(in srgb, var(--bad) 26%, transparent); }
