@@ -552,3 +552,11 @@ h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
   body[data-view="nuages"] main, body[data-view="banc"] main, body[data-view="pick"] main { max-width: 1480px; margin-left: auto; margin-right: auto; }
 }
 .tdb-panel .ax { font-size: 12px; } .tdb-panel .ax.t { font-size: 13px; } .tdb-panel .gl { font-size: 12px; }
+/* Vue générale : sélecteur Entreprises | Secteurs, bulles de secteurs */
+.tdb-intro h3 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mode-switch { margin: 0 0 0 auto; display: inline-flex; gap: 4px; }
+.tdb-panel circle.sb { fill: var(--fr); fill-opacity: .4; stroke: var(--fr); stroke-width: 1; cursor: pointer; }
+.tdb-panel circle.sb:hover { fill-opacity: .75; }
+.tdb-panel .lbl { fill: var(--ink); font-size: 11.5px; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.tdb-panel .grid.zero { stroke: var(--muted); }
+#view-tdb > .tdb-list { margin-top: 10px; }

@@ -40,8 +40,6 @@
       <button role="tab" aria-selected="true" data-view="tdb" data-in="invest">Vue générale</button>
       <button role="tab" aria-selected="false" data-view="list" data-in="invest">Analyse</button>
       <button role="tab" aria-selected="false" data-view="pick" data-in="invest">Stock picking</button>
-      <button role="tab" aria-selected="false" data-view="sectors" data-in="invest">Secteurs</button>
-      <button role="tab" aria-selected="false" data-view="nuages" data-in="invest">Ratios</button>
       <button role="tab" aria-selected="false" data-view="banc" data-in="invest">Banc d'essai</button>
       <button role="tab" aria-selected="false" data-view="ptdb" data-in="reprise">Vue générale</button>
       <button role="tab" aria-selected="false" data-view="pme" data-in="reprise">Carte et analyse</button>
@@ -85,7 +83,6 @@
   <section id="view-sectors" class="view" hidden>
     <p class="count">Médianes par secteur, sur les sociétés qui passent les filtres (hors secteur).</p>
     <div id="sectorCharts" class="sector-charts"></div>
-    <div class="tablewrap"><table id="sectorTable"></table></div>
   </section>
 
   <section id="view-compare" class="view" hidden>
@@ -129,7 +126,10 @@
   <section id="view-pick" class="view" hidden><div id="pickOut"></div></section>
   <section id="view-nuages" class="view" hidden><div id="nuageOut"></div></section>
   <section id="view-banc" class="view" hidden><div id="bancOut"></div></section>
-  <section id="view-tdb" class="view" hidden><div id="tdbOut"></div></section>
+  <section id="view-tdb" class="view" hidden><div id="tdbOut"></div>
+    <details class="card tdb-list"><summary><b>Médianes par secteur</b> <small>— sociétés qui passent les filtres · cliquer un secteur pour voir ses sociétés dans Analyse</small></summary>
+      <div class="tablewrap"><table id="sectorTable"></table></div></details>
+  </section>
 
   <section id="view-lbo" class="view" hidden>
     <p class="count">Reprise à titre personnel : une holding achète la société, financée par ton apport, un prêt d'honneur, un crédit-vendeur et une dette bancaire, remboursée par les dividendes de la cible. Depuis une fiche PME, « Simuler la reprise » remplit la cible automatiquement.</p>

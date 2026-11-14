@@ -855,7 +855,7 @@ async function init() {
   bindCompare();
   let start = "tdb";
   try { start = localStorage.getItem("reprise.view") || "tdb"; } catch (e) { /* ignoré */ }
-  setView(SPACE_OF[start] && start !== "compare" ? start : "tdb");
+  setView(SPACE_OF[start] && !["compare", "sectors", "nuages"].includes(start) ? start : "tdb");
   // Plus de module hors connexion : on désinstalle celui des anciennes versions et on vide ses copies.
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});

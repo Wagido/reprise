@@ -6,12 +6,13 @@ rentabilité ; conclusion actionnaires / prêteurs). Tout en français. Proprié
 intéressé par la reprise d'entreprise et le stock picking.
 
 ## Deux espaces
-- **Investir** (sociétés cotées) : Vue générale (`tdb.js`, 2 × 2 nuages, verdicts), Analyse (tableau + fiche
-  toujours visible à droite sur grand écran, méthode repliable sinon), Stock picking, Secteurs (4 nuages de
-  bulles par étape + tableau), Ratios (`nuages.js`, dont marge × rotation à iso-ROCE ; ex-« Comparer »), Banc d'essai (`banc.js` : l'analyse
-  de l'outil face au consensus des analystes, CAC 40 ; consensus relevé à la main dans `consensus.json`, daté et sourcé).
+- **Investir** (sociétés cotées) : Vue générale (`tdb.js` : partie 1 analyse financière, 2 graphiques par étape ;
+  partie 2 marché ; sélecteur Entreprises | Secteurs ; tableau des médianes par secteur en bas — les anciens onglets
+  Secteurs et Ratios y sont fondus), Analyse (tableau + fiche à droite), Stock picking, Banc d'essai (`banc.js` :
+  l'analyse de l'outil face au consensus des analystes, CAC 40 ; consensus relevé à la main dans `consensus.json`).
+  Style d'origine (en-tête aéré, filtres visibles), mode clair par défaut, plus de service worker.
 - **Reprendre** (PME françaises 2–50 M€), même logique : Vue générale PME (4 nuages, verdicts, `TDB.panel`
-  réutilisé), Carte et analyse (Leaflet Plan IGN + tableau + fiche à droite), Simulateur LBO de repreneur.
+  réutilisé, sélecteur Entreprises | Activités), Carte et analyse (Leaflet Plan IGN + tableau + fiche à droite), Simulateur LBO de repreneur.
 - **Méthode** : texte du plan en 4 étapes (`Analyse.methodHtml`).
 
 ## Fichiers
@@ -30,7 +31,8 @@ intéressé par la reprise d'entreprise et le stock picking.
 ## Habitudes
 - Environnement cloud « reprise » (pas « navshom », réservé à l'app GPS Balise).
 - Branche de travail `claude/nifty-meitner-oyezey`, poussée aussi sur `main` (déclenche la publication).
-- Tester en local : `python3 -m http.server 8765` à la racine, captures Playwright.
+- Tester en local : `python3 -m http.server 8765` à la racine, captures Playwright. Toujours vérifier le site EN LIGNE
+  (version `?v=<sha>` dans la page) avant d'annoncer une publication ; `publish.yml` publie en 2 minutes.
 - Données dans `data/` et cache dans `cache/` : non versionnés.
 
 ## Idées en attente

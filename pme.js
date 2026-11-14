@@ -236,14 +236,14 @@ const PME = (() => {
       guides: [{ axis: "y", v: 5, label: "5 %", above: true }, { axis: "y", v: 0 }],
       note: "La CAF rembourse la dette de reprise ; au-dessus de 5 % de marge nette, la rentabilité est jugée satisfaisante." },
   ];
-  let tdb = [], tOnly = false, tHot = null;
+  let tdb = [], tOnly = false, tHot = null, tMode = "ent";
   function renderTdb() {
     const list = compute();
     tdb = list.map((o, k) => { const s = stepColors(o); return { o, k, id: o.siren, f: o, s, all: s.every((x) => x === "green") }; });
     const good = tdb.filter((d) => d.all).sort((a, b) => (b.o.me || 0) - (a.o.me || 0));
     $("pmeInfo").textContent = `${nf0.format(tdb.length)} PME sur ${nf0.format(data.list.length)} (CA de ${data.meta.ca_min / 1e6} à ${data.meta.ca_max / 1e6} M€, comptes publics)`;
     $("ptdbOut").innerHTML = `
-      <div class="card tdb-intro"><h3>Le plan en 4 étapes, pour toutes les PME</h3>
+      <div class="card tdb-intro"><h3>Le plan en 4 étapes, pour toutes les PME ${TDB.modeSwitch(tMode, "Activités")}</h3>
         <p class="note">Chaque point est une PME (filtres ci-dessus appliqués). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
           <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>. Les comptes publics des PME ne donnent ni l'actif économique ni le ROCE : les graphiques utilisent les ratios publiés (BCE / INPI).</p>
         <label class="check tdb-toggle"><input type="checkbox" id="ptdbAll" ${tOnly ? "checked" : ""}> N'afficher que les PME bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(tdb.length)})</label>
@@ -256,7 +256,8 @@ const PME = (() => {
           <td>${K(d.o.ca)}</td><td>${pct(d.o.g, true)}</td><td>${P1(d.o.me)}</td><td>${J(d.o.bfrj)}</td><td>${ok(d.o.remb) ? (d.o.remb < 0 ? "trésorerie nette" : nf1.format(d.o.remb)) : "—"}</td><td>${P1(d.o.auto)}</td><td>${P1(d.o.nm)}</td></tr>`).join("")}
         </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${nf0.format(good.length)}.</p>` : ""}</details>`;
     const size = TDB.fit($("ptdbGrid"));
-    $("ptdbGrid").innerHTML = PANELS.map((pn) => TDB.panel(pn, tdb, tOnly, tHot, size)).join("");
+    const groups = tMode === "sec" ? TDB.groupPoints(tdb, PANELS, (d) => d.o.sec, (k) => (data.meta.sections[k] || k).split(/[,(]/)[0].trim()) : null;
+    $("ptdbGrid").innerHTML = PANELS.map((pn) => TDB.panel(pn, tdb, { only: tOnly, hot: tHot, size, groups })).join("");
   }
   function hotLine() {
     const d = tdb.find((x) => x.id === tHot);
@@ -283,6 +284,10 @@ const PME = (() => {
       });
     });
     box.addEventListener("click", (e) => {
+      const m = e.target.closest("[data-mode]");
+      if (m) { tMode = m.dataset.mode; renderTdb(); return; }
+      const b = e.target.closest("circle.sb");
+      if (b) { tMode = "ent"; $("pSec").value = b.dataset.grp; st.shown = 100; renderTdb(); return; }
       const c = e.target.closest("circle.dp, tr[data-k]");
       if (c) openPme(tdb[Number(c.dataset.k)].o);
     });
