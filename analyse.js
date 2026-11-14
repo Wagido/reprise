@@ -88,6 +88,18 @@ const Analyse = (() => {
       liqImm: ok(cash) && ok(CL) && CL > 0 ? cash / CL : null,
       // Fiche 4 : intensité capitalistique (inverse de la rotation) et levier financier.
       intensity: ok(ae) && ok(rev) && rev > 0 ? ae / rev : null,
+      // Altman Z'' (1995, version sans cours de Bourse) :
+      // 6,56 × BFR global / actif + 3,26 × réserves / actif + 6,72 × EBIT / actif + 1,05 × capitaux propres / dettes.
+      zScore: (() => {
+        const re = g("retained_earnings");
+        if (!ok(A) || A <= 0 || !ok(CA) || !ok(CL) || !ok(re) || !ok(ebit) || !ok(eq)) return null;
+        const liab = A - eq;
+        if (liab <= 0) return null;
+        return 6.56 * (CA - CL) / A + 3.26 * re / A + 6.72 * ebit / A + 1.05 * eq / liab;
+      })(),
+      divYield: ok(g("dividends")) && ok(g("market_cap")) && g("market_cap") > 0 ? g("dividends") / g("market_cap") : null,
+      bookYield: ok(g("dividends")) && ok(eqGroup) && eqGroup > 0 ? g("dividends") / eqGroup : null,
+      roa: ok(ni) && ok(A) && A > 0 ? ni / A : null,
       ev: ok(g("market_cap")) && ok(netDebt) ? g("market_cap") + netDebt : null,
       evEbitda: ok(g("market_cap")) && ok(netDebt) && ok(ebitda) && ebitda > 0 ? (g("market_cap") + netDebt) / ebitda : null,
       growth: (() => {
@@ -342,7 +354,7 @@ const Analyse = (() => {
   // ---------- Comparaison au secteur ----------
   const sectorCache = {};
   const BENCH = ["growth", "ebitdaMargin", "margin", "netMargin", "bfrDays", "capexRev", "rotation", "ndEbitda",
-    "coverage", "roce", "roe", "evEbitda"];
+    "coverage", "roce", "roe", "evEbitda", "zScore", "divYield", "bookYield", "liqGen", "growth1"];
   function sectorStats(sector, i) {
     const key = sector + "|" + i;
     if (sectorCache[key]) return sectorCache[key];
@@ -638,6 +650,93 @@ const Analyse = (() => {
        dividende, après impôt au taux de ${P(f.tUsed)} : c'est un ordre de grandeur, pas un plan de financement. La dette est plafonnée à 75 % du prix.`));
   }
 
+  // ---------- Scores de qualité ----------
+  // Piotroski F-score : 9 critères binaires comparant l'exercice au précédent.
+  function piotroski(c, i) {
+    const f = figures(c, i), p = figures(c, i - 1);
+    const gm = (x) => (ok(x.gp) && ok(x.rev) && x.rev > 0 ? x.gp / x.rev : ok(x.ebitdaMargin) ? x.ebitdaMargin : null);
+    const lev = (x) => (ok(x.A) && x.A > 0 ? x.debtLT / x.A : null);
+    const turn = (x) => (ok(x.rev) && ok(x.A) && x.A > 0 ? x.rev / x.A : null);
+    const test = (a, b) => (ok(a) && ok(b) ? a : null);
+    const crit = [
+      ["Rentabilité", "Résultat net positif (ROA > 0)", ok(f.roa) ? f.roa > 0 : null],
+      ["Rentabilité", "Flux de trésorerie d'exploitation positif", ok(f.cfo) ? f.cfo > 0 : null],
+      ["Rentabilité", "ROA en hausse sur un an", ok(f.roa) && ok(p.roa) ? f.roa > p.roa : null],
+      ["Rentabilité", "Flux d'exploitation supérieur au résultat net (bénéfice de qualité)", ok(f.cfo) && ok(f.ni) ? f.cfo > f.ni : null],
+      ["Structure", "Dette long terme / actif en baisse", ok(lev(f)) && ok(lev(p)) && f.debtKnown ? lev(f) <= lev(p) : null],
+      ["Structure", "Liquidité générale en hausse", ok(f.liqGen) && ok(p.liqGen) ? f.liqGen > p.liqGen : null],
+      ["Structure", "Pas d'augmentation de capital significative", ok(f.issue) && ok(f.eq) && f.eq > 0 ? f.issue <= 0.02 * f.eq : (ok(f.cff) ? true : null)],
+      ["Efficacité", ok(f.gp) ? "Marge brute en hausse" : "Marge d'EBE en hausse (marge brute non publiée)", test(gm(f), gm(p)) !== null ? gm(f) > gm(p) : null],
+      ["Efficacité", "Rotation de l'actif (CA / actif) en hausse", ok(turn(f)) && ok(turn(p)) ? turn(f) > turn(p) : null],
+    ];
+    const known = crit.filter((x) => x[2] !== null);
+    return { crit, score: known.filter((x) => x[2]).length, known: known.length };
+  }
+
+  // Radar 5 axes : rang de la société dans son secteur (0 à 100) sur chaque dimension.
+  function radarAxes(c, f, st) {
+    const rank = (k, v, hib = true) => {
+      const s = st[k];
+      if (!s || !ok(v) || s.sorted.length < 5) return null;
+      const r = s.sorted.filter((x) => x < v).length / s.sorted.length * 100;
+      return hib ? r : 100 - r;
+    };
+    const avg = (a) => { const b = a.filter(ok); return b.length ? b.reduce((x, y) => x + y, 0) / b.length : null; };
+    const health = avg([
+      ok(f.netDebt) && f.netDebt <= 0 ? 100 : rank("ndEbitda", f.ndEbitda, false),
+      rank("coverage", f.coverage), rank("liqGen", f.liqGen), rank("zScore", f.zScore)]);
+    return [
+      ["Valorisation", rank("evEbitda", f.evEbitda, false), ok(f.evEbitda) ? `VE / EBE ${X(f.evEbitda)} (moins cher que ${nf0.format(rank("evEbitda", f.evEbitda, false) || 0)} % du secteur)` : "pas de capitalisation (sociétés françaises)"],
+      ["Croissance", avg([rank("growth", f.growth), rank("growth1", f.growth1)]), `CA ${P(f.growth)} par an sur 3 ans, ${P(f.growth1)} sur 1 an`],
+      ["Rentabilité", avg([rank("roce", f.roce), rank("ebitdaMargin", f.ebitdaMargin)]), `ROCE après IS ${P(f.roce)}, marge d'EBE ${P(f.ebitdaMargin)}`],
+      ["Santé financière", health, `dette nette / EBE ${ok(f.netDebt) && f.netDebt <= 0 ? "trésorerie nette" : X(f.ndEbitda)}, couverture ${X(f.coverage)}, Altman ${ok(f.zScore) ? nf1.format(f.zScore) : "—"}`],
+      ["Dividende", ok(f.divYield) ? rank("divYield", f.divYield) : rank("bookYield", f.bookYield),
+        ok(f.divYield) ? `rendement ${P(f.divYield)}` : ok(f.bookYield) ? `dividendes / capitaux propres ${P(f.bookYield)}` : "pas de dividende publié"],
+    ];
+  }
+
+  function radarSvg(axes) {
+    const S = 300, cx = S / 2, cy = S / 2 + 6, R = 100;
+    const pt = (k, v) => {
+      const a = -Math.PI / 2 + k * 2 * Math.PI / axes.length;
+      return [cx + Math.cos(a) * R * v / 100, cy + Math.sin(a) * R * v / 100];
+    };
+    let g = "";
+    for (const lvl of [25, 50, 75, 100]) g += `<polygon class="ring" points="${axes.map((_, k) => pt(k, lvl).join(",")).join(" ")}"/>`;
+    axes.forEach((a, k) => {
+      const [x, y] = pt(k, 100), [lx, ly] = pt(k, 122);
+      g += `<line class="spoke" x1="${cx}" y1="${cy}" x2="${x}" y2="${y}"/>`;
+      g += `<text class="rl${ok(a[1]) ? "" : " nd"}" x="${lx}" y="${ly + 4}" text-anchor="${Math.abs(lx - cx) < 5 ? "middle" : lx > cx ? "start" : "end"}">${a[0]}${ok(a[1]) ? "" : " (n.d.)"}</text>`;
+    });
+    const poly = axes.map((a, k) => (ok(a[1]) ? pt(k, Math.max(4, a[1])).join(",") : null)).filter(Boolean).join(" ");
+    g += `<polygon class="area" points="${poly}"/>`;
+    axes.forEach((a, k) => { if (ok(a[1])) { const [x, y] = pt(k, Math.max(4, a[1])); g += `<circle class="dotr" cx="${x}" cy="${y}" r="4"><title>${a[0]} : ${nf0.format(a[1])} / 100</title></circle>`; } });
+    return `<svg viewBox="-40 0 ${S + 80} ${S + 12}" class="radar" role="img" aria-label="Radar de la société sur 5 axes">${g}</svg>`;
+  }
+
+  function qualityCard(c, f, i, st) {
+    const axes = radarAxes(c, f, st);
+    const pio = piotroski(c, i);
+    const z = f.zScore;
+    const zZone = !ok(z) ? ["grey", "non calculable (réserves ou bilan non publiés)"] : z > 2.6 ? ["green", "zone sûre (> 2,6)"] : z >= 1.1 ? ["orange", "zone grise (1,1 à 2,6)"] : ["red", "zone de détresse (< 1,1)"];
+    const pLight = pio.known < 6 ? "grey" : pio.score >= 7 ? "green" : pio.score >= 4 ? "orange" : "red";
+    return `<div class="card"><h3>Radar et scores de qualité</h3>
+      <div class="quality">
+        <div>${radarSvg(axes)}
+          <table class="axes"><tbody>${axes.map((a) => `<tr><td class="l"><b>${a[0]}</b><br><small>${a[2]}</small></td><td>${ok(a[1]) ? nf0.format(a[1]) + " / 100" : "—"}</td></tr>`).join("")}</tbody></table>
+          <p class="note">Chaque axe est le rang de la société dans son secteur (100 = la meilleure). Valorisation : moins cher = mieux noté.</p></div>
+        <div>
+          <h4 class="sub">Piotroski F-score : ${light(pLight)}<b>${pio.score} / ${pio.known}</b>${pio.known < 9 ? ` <small>(${9 - pio.known} critère(s) non calculable(s))</small>` : ""}</h4>
+          <ul class="pio">${pio.crit.map(([grp, t, v]) => `<li class="${v === null ? "na" : v ? "pos" : "neg"}">${v === null ? "?" : v ? "✓" : "✗"} <span>${t}</span> <small>${grp}</small></li>`).join("")}</ul>
+          <p class="note">9 critères comparant ${state.meta.years[i]} à ${state.meta.years[i - 1] || "l'année précédente"} : 7 à 9 = entreprise solide et qui s'améliore, 0 à 3 = fragile.</p>
+          <h4 class="sub">Altman Z-score : ${light(zZone[0])}<b>${ok(z) ? nf1.format(z) : "—"}</b></h4>
+          <p class="note">${zZone[1]}. Version Z'' (1995), sans cours de Bourse, adaptée aux sociétés hors industrie :
+            6,56 × fonds de roulement / actif + 3,26 × réserves / actif + 6,72 × résultat d'exploitation / actif + 1,05 × capitaux propres / dettes.
+            Mesure le risque de défaillance à deux ans ; peu pertinent pour les banques et assurances.</p>
+        </div>
+      </div></div>`;
+  }
+
   // ---------- Synthèse ----------
   function synthesis(c, f, i, st) {
     const verdict = [];
@@ -700,7 +799,7 @@ const Analyse = (() => {
   function render(c, i) {
     const f = figures(c, i);
     const st = sectorStats(c.s, i);
-    return synthesis(c, f, i, st) + step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + valuation(c, f, i, st);
+    return synthesis(c, f, i, st) + qualityCard(c, f, i, st) + step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + valuation(c, f, i, st);
   }
 
   // Texte de la méthode, affiché dans l'onglet Méthode et dans chaque fiche.
@@ -737,5 +836,5 @@ const Analyse = (() => {
     params[name] = Number.isFinite(v) && v > 0 ? v : (name === "mult" ? null : params[name]);
     saveParams();
   }
-  return { render, figures, methodHtml: METHOD_HTML, params, setParam };
+  return { render, figures, piotroski, methodHtml: METHOD_HTML, params, setParam };
 })();

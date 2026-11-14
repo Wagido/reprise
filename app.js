@@ -178,6 +178,15 @@ function compute(ignoreSector = false) {
     if (f.complete && !m.complete) continue;
     out.push({ c, m });
   }
+  // Scores de qualité (calculés à la demande, mis en cache par exercice).
+  for (const r of out) {
+    const key = "q" + i;
+    if (!r.c[key]) {
+      const p = Analyse.piotroski(r.c, i);
+      r.c[key] = { fs: p.known >= 8 ? Math.round(p.score * 9 / p.known) : null, z: Analyse.figures(r.c, i).zScore };
+    }
+    r.fs = r.c[key].fs; r.z = r.c[key].z;
+  }
   score(out);
   return out;
 }
@@ -198,6 +207,8 @@ const COLS = [
   { key: "leverage", label: "DN/EBITDA", get: (r) => r.m.leverage, fmt: (r) => mult(r.m.leverage) },
   { key: "roce", label: "ROCE", get: (r) => r.m.roce, fmt: (r) => pct(r.m.roce, true) },
   { key: "bfrDays", label: "BFR", get: (r) => r.m.bfrDays, fmt: (r) => days(r.m.bfrDays) },
+  { key: "fscore", label: "Piotroski", get: (r) => r.fs, fmt: (r) => (ok(r.fs) ? `${r.fs}/9` : '<span class="na">—</span>') },
+  { key: "z", label: "Altman", get: (r) => r.z, fmt: (r) => (ok(r.z) ? `<span class="${r.z > 2.6 ? "pos" : r.z < 1.1 ? "neg" : ""}">${nf1.format(r.z)}</span>` : '<span class="na">—</span>') },
 ];
 
 function shortSector(s) {
@@ -530,12 +541,12 @@ function exportCsv() {
   const rows = state.rows.length ? state.rows : compute();
   const head = ["Société", "Pays", "Ticker", "Secteur", "Devise d'origine", "Score", "CA M€", "Croissance 3 ans",
     "EBITDA M€", "Marge EBITDA", "Résultat net M€", "Marge nette", "FCF M€", "Conversion cash", "Trésorerie M€",
-    "Dettes financières M€", "Dette nette M€", "DN/EBITDA", "Capitaux propres M€", "ROCE", "BFR jours", "Source"];
+    "Dettes financières M€", "Dette nette M€", "DN/EBITDA", "Capitaux propres M€", "ROCE", "BFR jours", "Piotroski", "Altman Z''", "Source"];
   const n = (v, d = 1) => (ok(v) ? v.toFixed(d).replace(".", ",") : "");
-  const lines = rows.map(({ c, m, score }) => [c.n, c.c, c.t || "", state.meta.sectors[c.s], c.cur, score ?? "",
+  const lines = rows.map(({ c, m, score, fs, z }) => [c.n, c.c, c.t || "", state.meta.sectors[c.s], c.cur, score ?? "",
     n(m.rev), n(m.growth, 4), n(m.ebitda), n(m.ebitdaMargin, 4), n(m.ni), n(m.netMargin, 4), n(m.fcf),
     n(m.conversion, 4), n(m.cash), n(m.debt), n(m.netDebt), n(m.leverage, 2), n(m.equity), n(m.roce, 4),
-    n(m.bfrDays, 0), c.src || ""]);
+    n(m.bfrDays, 0), fs ?? "", n(z, 2), c.src || ""]);
   const csv = [head, ...lines].map((l) => l.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(";")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));

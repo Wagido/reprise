@@ -41,6 +41,7 @@ FIELDS = [
     ("ppe_gross", "I", "Immobilisations corporelles brutes"),
     ("equity", "I", "Capitaux propres part du groupe"),
     ("equity_total", "I", "Capitaux propres de l'ensemble consolidé"),
+    ("retained_earnings", "I", "Réserves (bénéfices accumulés)"),
     ("noncurrent_liabilities", "I", "Passifs à plus d'un an"),
     ("cash", "I", "Trésorerie"),
     ("debt_lt", "I", "Dettes financières à long terme"),
@@ -87,6 +88,7 @@ US_GAAP = {
     "ppe": [["PropertyPlantAndEquipmentNet"]],
     "ppe_gross": [["PropertyPlantAndEquipmentGross"]],
     "equity_total": [["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"], ["StockholdersEquity"]],
+    "retained_earnings": [["RetainedEarningsAccumulatedDeficit"]],
     "noncurrent_liabilities": [["LiabilitiesNoncurrent"]],
     "operating_income": [["OperatingIncomeLoss"]],
     "da": [
@@ -166,6 +168,7 @@ IFRS = {
     "ppe": [["PropertyPlantAndEquipment"]],
     "ppe_gross": [["PropertyPlantAndEquipmentGrossCarryingAmount"]],
     "equity_total": [["Equity"]],
+    "retained_earnings": [["RetainedEarnings"]],
     "noncurrent_liabilities": [["NoncurrentLiabilities"]],
     "operating_income": [["ProfitLossFromOperatingActivities"]],
     "da": [
@@ -258,6 +261,8 @@ CUSTOM_RULES = {
            r"impair|perte|provision|accumulat|cumul|reprise|reversal|before|avant|hors(?:amort|depr)|excluding|receivable|creance|stock|inventor"),
     "debt": ("I", [r"borrowing|emprunt|dettefinanciere|dettesfinancieres|financialdebt|grossdebt|endettementbrut|bond|obligation|overdraft|decouvert|bankloan|bankfacilit|commercialpaper|negociable"],
              r"net|proceed|repay|rembours|nouveau|increase|decrease|variation|change|lease|locati|interest|interet|cost|cout|emission|issu|fairvalue|justevaleur|derivat|cash|tresorerie"),
+    "retained_earnings": ("I", [r"reserve|retainedearning|resultatsaccumul|resultatsnondistribu|reportanouveau"],
+                          r"translation|conversion|hedg|couverture|legal|revaluation|reevaluation|actuari|minorit|noncontrolling|interetsminoritaires|treasury|autocontrole|optionsurtitres|sharebased|paiementenactions|fairvalue|justevaleur|premium|prime"),
     "net_debt": ("I", [r"netdebt|endettementnet|dettenette|netfinancialdebt|netindebtedness|endettementfinanciernet|dettefinancierenette"],
                  r"change|variation|ratio|ebitda|increase|decrease|before|hors|excluding|avant"),
 }

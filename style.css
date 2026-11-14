@@ -281,3 +281,20 @@ details.method li { margin-bottom: 6px; }
 @media (max-width: 640px) { .fin, .lgrid { grid-template-columns: 1fr; } }
 .stackbar { display: flex; height: 44px; border-radius: 6px; overflow: hidden; margin-top: 12px; gap: 2px; }
 .stackbar > div { color: #fff; font-size: 11.5px; line-height: 1.2; display: flex; align-items: center; justify-content: center; text-align: center; }
+
+/* ---------- Radar et scores ---------- */
+.quality { display: grid; grid-template-columns: minmax(260px, 1fr) 1fr; gap: 18px; }
+@media (max-width: 760px) { .quality { grid-template-columns: 1fr; } }
+.radar { width: 100%; max-width: 380px; display: block; margin: 0 auto; }
+.radar .ring { fill: none; stroke: var(--line); }
+.radar .spoke { stroke: var(--line); }
+.radar .rl { fill: var(--ink); font-size: 12.5px; font-weight: 600; }
+.radar .area { fill: var(--bar1); fill-opacity: .28; stroke: var(--bar1); stroke-width: 2; }
+.radar .dotr { fill: var(--bar1); stroke: var(--panel); stroke-width: 2; }
+table.axes td { padding: 5px 6px; white-space: normal; }
+table.axes small { color: var(--muted); }
+ul.pio { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 3px; font-size: 13px; }
+ul.pio li span { color: var(--ink); }
+ul.pio li small { color: var(--muted); }
+ul.pio li.pos { color: var(--good); } ul.pio li.neg { color: var(--bad); } ul.pio li.na { color: var(--muted); }
+.radar .rl.nd { fill: var(--muted); font-weight: 400; }
