@@ -229,11 +229,12 @@ const LBO = (() => {
   }
 
   // Préremplit le simulateur avec une PME (montants en k€).
-  function fromPme(o) {
+  // r : retraitements faits dans la fiche (EBE retraité, dette nette = dettes − trésorerie).
+  function fromPme(o, r = {}) {
     const caf = ok(o.cafca) ? o.cafca / 100 * o.ca : null;
-    p = { ...p, nom: o.n, ca: o.ca, ebe: o.ebe, da: ok(o.ebit) ? Math.max(0, o.ebe - o.ebit) : p.da,
+    p = { ...p, nom: o.n, ca: o.ca, mult: ok(r.mult) ? r.mult : p.mult, multSortie: ok(r.mult) ? r.mult : p.multSortie, ebe: ok(r.ebe) ? Math.round(r.ebe) : o.ebe, da: ok(o.ebit) ? Math.max(0, o.ebe - o.ebit) : p.da,
       bfrj: ok(o.bfrj) ? Math.round(o.bfrj) : p.bfrj,
-      detteCible: ok(o.remb) && ok(caf) && caf > 0 ? Math.round(Math.max(0, o.remb * caf)) : 0,
+      detteCible: ok(r.detteNette) ? Math.round(r.detteNette) : ok(o.remb) && ok(caf) && caf > 0 ? Math.round(Math.max(0, o.remb * caf)) : 0,
       croissance: ok(o.g) ? Math.round(Math.max(-5, Math.min(10, o.g * 100)) * 2) / 2 : p.croissance, remu: 0, margeEbe: null };
     save();
   }

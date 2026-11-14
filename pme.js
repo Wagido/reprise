@@ -345,6 +345,33 @@ const PME = (() => {
     return bySec[sec] || "autre";
   }
 
+  // Multiple de référence d'une PME, en trois couches :
+  // 1. l'Argos Index (Epsilon Research), seul repère public des transactions non cotées de la zone euro
+  //    (VE 15 à 500 M€), médiane VE / EBITDA : 8,3× au T4 2025 ;
+  // 2. un ajustement de secteur relatif, tiré des sociétés cotées : racine du rapport entre la médiane
+  //    VE / EBE du secteur et celle de toute la cote, borné entre 0,75 et 1,35 (les écarts entre secteurs
+  //    sont moins marqués chez les PME qu'en Bourse) ;
+  // 3. une décote de taille, les petites PME se cédant 3 à 6× selon les praticiens.
+  const ARGOS = { m: 8.3, date: "T4 2025" };
+  function sizeFactor(caK) {
+    return !ok(caK) ? 0.6 : caK < 2000 ? 0.5 : caK < 5000 ? 0.6 : caK < 15000 ? 0.7 : caK < 50000 ? 0.85 : 1;
+  }
+  let allMed = null;
+  function multRef(o) {
+    if (typeof state === "undefined" || !state.companies || !state.meta) return null;
+    const ls = listedSector(o.naf, o.sec);
+    const ys = state.meta.years;
+    const yi = Math.max(0, ys.indexOf(Math.min(o.y, ys[ys.length - 1])));
+    const med = Analyse.sectorMedians(ls, yi).evEbitda;
+    if (allMed === null) {
+      const v = state.companies.map((c) => Analyse.figures(c, yi).evEbitda).filter((x) => ok(x) && x >= 2 && x <= 40).sort((a, b) => a - b);
+      allMed = v.length ? v[Math.floor(v.length / 2)] : NaN;
+    }
+    const sf = ok(med) && ok(allMed) ? Math.max(0.75, Math.min(1.35, Math.sqrt(med / allMed))) : 1;
+    const zf = sizeFactor(o.ca);
+    return { m: Math.round(ARGOS.m * sf * zf * 10) / 10, med, allMed, sf, zf, label: state.meta.sectors[ls] || ls };
+  }
+
   function comparables(o) {
     if (typeof state === "undefined" || !state.companies || !state.meta) return "";
     const ls = listedSector(o.naf, o.sec);
@@ -358,11 +385,11 @@ const PME = (() => {
       return { c, f, r };
     }).filter((x) => ok(x.r) && x.r >= 50 && ok(x.f.evEbitda) && x.f.evEbitda >= 2 && x.f.evEbitda <= 40)
       .sort((a, b) => Math.abs(Math.log(a.r / caEur)) - Math.abs(Math.log(b.r / caEur))).slice(0, 5);
-    const sugg = ok(med.evEbitda) ? med.evEbitda * 0.6 : null;
+    const ref = multRef(o), sugg = ref ? ref.m : null;
     return `<div class="card"><h3>Comparables cotés <small>— secteur « ${esc(state.meta.sectors[ls] || ls)} »</small></h3>
       <div class="kpis">
         <div class="kpi"><b>${ok(med.evEbitda) ? nf1.format(med.evEbitda) + "×" : "—"}</b><span>VE / EBE médian des sociétés cotées du secteur</span></div>
-        <div class="kpi"><b>${ok(sugg) ? nf1.format(sugg) + "×" : "—"}</b><span>Après décote de taille et de liquidité de 40 %</span><small class="bench">les PME se cèdent en général 30 à 50 % sous les multiples boursiers</small></div>
+        <div class="kpi"><b>${ok(sugg) ? nf1.format(sugg) + "×" : "—"}</b><span>Multiple de référence de cette PME</span>${ref ? `<small class="bench">Argos Index ${ARGOS.m}× (${ARGOS.date}) × secteur ${nf1.format(ref.sf)} × taille ${nf1.format(ref.zf)}</small>` : ""}</div>
       </div>
       ${peers.length ? `<div class="tablewrap"><table><thead><tr><th class="l">Société cotée la plus proche en taille</th><th>CA</th><th>Marge d'EBE</th><th>VE / EBE</th></tr></thead><tbody>
         ${peers.map((x) => `<tr data-peer="${esc(x.c.id)}"><td class="l">${esc(x.c.n)}<span class="flag">${x.c.c}</span></td><td>${nf0.format(x.r)} M€</td><td>${ok(x.f.ebitdaMargin) ? nf1.format(x.f.ebitdaMargin * 100) + " %" : "—"}</td><td>${nf1.format(x.f.evEbitda)}×</td></tr>`).join("")}
@@ -370,7 +397,8 @@ const PME = (() => {
       <p class="note">Sociétés cotées d'au moins 50 M€ de CA, aux multiples compris entre 2× et 40×. Elles sont plus grandes que la PME : s'en servir comme repère pour le multiple de reprise ci-dessous, et comparer surtout les marges.</p></div>`;
   }
 
-  const params = { mult: 5, lev: 3.5 };
+  const params = { lev: 3.5 };
+  const perCo = {};   // saisies propres à une société (trésorerie, retraitements, dettes), le temps de la session
   try { Object.assign(params, JSON.parse(localStorage.getItem("reprise.pmeParams") || "{}")); } catch (e) { /* ignoré */ }
 
   function openPme(o) {
@@ -384,16 +412,26 @@ const PME = (() => {
       [3, "Financement", v3, `Capacité de remboursement ${ok(o.remb) ? (o.remb < 0 ? "trésorerie supérieure aux dettes" : Y(o.remb) + " de CAF") : "—"} ; autonomie financière ${P1(o.auto)}.`],
       [4, "Rentabilité", v4, `Marge nette ${P1(o.nm)} ; résultat courant avant impôt ${P1(o.rcai)} du CA.`],
     ];
-    const ev = ok(o.ebe) && o.ebe > 0 ? params.mult * o.ebe : null;
-    const acq = ok(o.ebe) && o.ebe > 0 ? Math.min(params.lev * o.ebe, (ev || 0) * 0.75) : null;
+    // Retraitements de l'EBE : crédit d'impôt (CIR / CII) estimé quand le résultat net dépasse le
+    // résultat courant avant impôt (impôt négatif), plus ce que l'utilisateur saisit (intéressement…).
+    const rcaiK = ok(o.rcai) && ok(o.ca) ? o.rcai / 100 * o.ca : null;
+    const ciEst = ok(rcaiK) && ok(o.rn) && o.rn > rcaiK ? Math.round(o.rn - rcaiK) : 0;
+    const ref = multRef(o);
+    const pc = perCo[o.siren] || (perCo[o.siren] = { ci: ciEst, inter: 0, treso: null, dettes: debt, mult: ref ? ref.m : 5 });
+    const mult = pc.mult;
+    const ebeR = ok(o.ebe) ? o.ebe + (pc.ci || 0) + (pc.inter || 0) : null;
+    const dettes = ok(pc.dettes) ? pc.dettes : 0;
+    const ev = ok(ebeR) && ebeR > 0 ? mult * ebeR : null;
+    const titres = ok(ev) ? ev - dettes + (ok(pc.treso) ? pc.treso : 0) : null;
+    const acq = ok(ebeR) && ebeR > 0 ? Math.min(params.lev * ebeR, (ev || 0) * 0.75) : null;
     const years = ok(acq) && ok(caf) && caf > 0 ? acq / (caf * 0.7) : null;  // ≈ 70 % de la CAF disponible pour la dette
     const q = (s, who, question, txt) => `<div class="q-row">${light(s)}<div><b>${who}</b> <i>${question}</i><span>${txt}</span></div></div>`;
     const vA = v4 === "green" && v1 !== "red" ? "green" : v4 === "red" ? "red" : v4 === "grey" ? "grey" : "orange";
     const txtA = `Rentabilité ${vA === "green" ? "satisfaisante" : vA === "red" ? "négative" : vA === "grey" ? "non évaluable" : "faible"} : marge nette ${P1(o.nm)} (secteur ${P1(ss.med("nm"))}), résultat courant avant impôt ${P1(o.rcai)} du CA. Création de valeur au sens strict non mesurable sans l'actif économique.`;
     const txtP = `${v3 === "green" ? (ok(o.remb) && o.remb < 0 ? "Trésorerie supérieure aux dettes financières." : "Dette remboursable en moins de 3 ans de CAF.") : v3 === "orange" ? "Remboursement en 3 à 5 ans de CAF : à surveiller." : v3 === "red" ? "Endettement lourd au regard de la CAF." : "Non évaluable."} Autonomie financière ${P1(o.auto)}, liquidité ${P1(o.liq)}.`;
     const vR = !ok(ev) ? "red" : !ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red";
-    const txtR = !ok(ev) ? "EBE nul ou négatif : pas de valorisation par multiple ni de reprise finançable par la dette."
-      : `À ${nf1.format(params.mult)}× l'EBE, valeur d'entreprise ≈ ${K(ev)}${ok(debt) ? `, soit ≈ ${K(ev - debt)} pour les titres après les dettes financières` : ""}. Une dette d'acquisition de ${nf1.format(params.lev)}× l'EBE (${K(acq)}) se rembourse en ${ok(years) ? nf1.format(years) + " ans" : "un temps indéfini"} avec 70 % de la CAF actuelle${ok(years) ? (years <= 7 ? " : montage réaliste." : years <= 10 ? " : montage tendu." : " : montage trop lourd.") : "."}`;
+    const txtR = !ok(ev) ? "EBE retraité nul ou négatif : pas de valorisation par multiple ni de reprise finançable par la dette."
+      : `Titres ≈ trésorerie − dettes + ${nf1.format(mult)}× l'EBE retraité (${K(ebeR)}${ebeR !== o.ebe ? `, dont ${K(ebeR - o.ebe)} de retraitements` : ""}) = ${K(titres)}${ok(pc.treso) ? "" : " hors trésorerie, qui n'est pas dans la base publique : à saisir plus bas"}. Une dette d'acquisition de ${nf1.format(params.lev)}× l'EBE (${K(acq)}) se rembourse en ${ok(years) ? nf1.format(years) + " ans" : "un temps indéfini"} avec 70 % de la CAF actuelle${ok(years) ? (years <= 7 ? " : montage réaliste." : years <= 10 ? " : montage tendu." : " : montage trop lourd.") : "."}`;
     $("detailBody").innerHTML = `
       <h2>${esc(o.n)}</h2>
       <p class="meta">${esc(o.com || "")} (${esc(o.dep || "")}) · NAF ${esc(o.naf || "")} — ${esc(data.meta.sections[o.sec] || "")} · effectif ${esc(o.eff || "—")} · créée en ${esc(o.cr || "—")} · exercice ${o.y}
@@ -446,11 +484,17 @@ const PME = (() => {
           ${kpi("Liquidité", P1(o.liq), `<small class="bench">actif circulant / dettes à court terme</small>`)}</div></div>`)}
       <h3 class="part"><span class="part-n">2</span> La reprise <small>— à quel prix, et la dette d'acquisition est-elle remboursable ?</small></h3>
       ${comparables(o)}
-      ${step("€", "Prix et montage de la reprise", "multiple d'EBE et montage LBO", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p><div class="kpis">
-        ${kpi("Multiple VE / EBE", `<input class="param" type="number" step="0.5" min="0" max="20" data-pparam="mult" value="${params.mult}">×`, `<small class="bench">PME françaises : souvent 4 à 7×</small>`)}
+      ${step("€", "Prix et montage de la reprise", "trésorerie − dettes + multiple × EBE retraité", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p>
+        <p class="note">Valeur des titres = trésorerie − dettes financières + multiple × EBE retraité. L'EBE est retraité de ce qui revient chaque année à l'entreprise sans passer par l'EBE : crédit d'impôt recherche ou innovation (comptabilisé en impôt), intéressement et participation (rémunération discrétionnaire du résultat). Les montants en k€ se corrigent avec les comptes complets.</p><div class="kpis">
+        ${kpi("EBE publié", K(o.ebe))}
+        ${kpi("+ crédit d'impôt (CIR / CII)", `<input class="param" type="number" step="10" data-cparam="ci" value="${pc.ci ?? ""}"> k€`, `<small class="bench">${ciEst > 0 ? `estimé à ${K(ciEst)} : résultat net supérieur au résultat courant avant impôt` : "aucun repéré dans les comptes"}</small>`)}
+        ${kpi("+ intéressement, participation", `<input class="param" type="number" step="10" data-cparam="inter" value="${pc.inter ?? ""}"> k€`, `<small class="bench">dans l'annexe des comptes</small>`)}
+        ${kpi("= EBE retraité", K(ebeR))}
+        ${kpi("Multiple de l'EBE retraité", `<input class="param" type="number" step="0.1" min="0" max="20" data-cparam="mult" value="${mult}">×`, `<small class="bench">${ref ? `référence ${nf1.format(ref.m)}× = Argos Index ${ARGOS.m}× (transactions non cotées, ${ARGOS.date}) × secteur ${nf1.format(ref.sf)} × taille ${nf1.format(ref.zf)}` : "PME françaises : souvent 4 à 7×"} ; à remplacer par le multiple d'une évaluation ou d'un pacte d'associés</small>`)}
         ${kpi("Valeur d'entreprise", K(ev))}
-        ${kpi("− dettes financières estimées", K(debt), `<small class="bench">capacité de remboursement × CAF</small>`)}
-        ${kpi("= valeur des titres (indicative)", ok(ev) && ok(debt) ? K(ev - debt) : "—")}
+        ${kpi("+ trésorerie", `<input class="param" type="number" step="10" data-cparam="treso" value="${pc.treso ?? ""}" placeholder="à saisir"> k€`, `<small class="bench">absente de la base publique : bilan, disponibilités et VMP</small>`)}
+        ${kpi("− dettes financières", `<input class="param" type="number" step="10" data-cparam="dettes" value="${ok(pc.dettes) ? Math.round(pc.dettes) : ""}"> k€`, `<small class="bench">${ok(debt) ? `estimées à ${K(debt)} (capacité de remboursement × CAF)` : "non estimables"}</small>`)}
+        ${kpi("= valeur des titres", K(titres), ok(pc.treso) ? "" : `<small class="bench neg">hors trésorerie : la saisir</small>`)}
         ${kpi("Dette d'acquisition (× EBE)", `<input class="param" type="number" step="0.5" min="0" max="6" data-pparam="lev" value="${params.lev}">×`)}
         ${kpi("Dette levée", K(acq))}
         ${kpi("Apport en fonds propres", ok(ev) && ok(acq) ? K(ev - acq) : "—")}
@@ -460,14 +504,18 @@ const PME = (() => {
       const peer = e.target.closest("tr[data-peer]");
       if (peer) { const c = state.companies.find((x) => x.id === peer.dataset.peer); if (c) openDetail(c); return; }
       if (e.target.id !== "toLbo") return;
-      LBO.fromPme(o);
+      LBO.fromPme(o, { mult, ebe: ebeR, detteNette: dettes - (ok(pc.treso) ? pc.treso : 0) });
       setView("lbo");
     };
     $("detailBody").onchange = (e) => {
+      const ck = e.target.dataset && e.target.dataset.cparam;
       const k = e.target.dataset && e.target.dataset.pparam;
-      if (!k) return;
-      const v = Number(String(e.target.value).replace(",", "."));
-      if (Number.isFinite(v) && v > 0) params[k] = v;
+      if (!k && !ck) return;
+      const raw = String(e.target.value).trim().replace(",", ".");
+      const v = Number(raw);
+      if (ck === "mult") pc.mult = Number.isFinite(v) && v > 0 && raw !== "" ? v : (ref ? ref.m : 5);
+      else if (ck) pc[ck] = raw === "" ? (ck === "treso" || ck === "dettes" ? null : 0) : Number.isFinite(v) ? v : pc[ck];
+      else if (Number.isFinite(v) && v > 0) params[k] = v;
       try { localStorage.setItem("reprise.pmeParams", JSON.stringify(params)); } catch (err) { /* ignoré */ }
       const s = $("detail").querySelector(".detail-inner").scrollTop;
       openPme(o);
