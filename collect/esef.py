@@ -85,7 +85,8 @@ def parse_filing(doc):
         if not custom and tag not in TAGS:
             continue
         unit = dims.get("unit", "")
-        if not unit.startswith("iso4217:") or "/" in unit:
+        per_share = tag == "BasicEarningsLossPerShare" and unit.startswith("iso4217:") and "/" in unit
+        if not unit.startswith("iso4217:") or ("/" in unit and not per_share):
             continue
         try:
             val = float(fact["value"])
@@ -102,7 +103,8 @@ def parse_filing(doc):
         if (TAGS[tag] == "D") != duration:
             continue
         by_year[year][tag] = val
-        units[unit[8:]] += 1
+        if not per_share:
+            units[unit[8:]] += 1
         if end:
             ends[year] = end
     if not units:

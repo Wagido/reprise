@@ -53,6 +53,7 @@ FIELDS = [
     ("receivables", "I", "Créances clients"),
     ("inventory", "I", "Stocks"),
     ("payables", "I", "Dettes fournisseurs"),
+    ("eps", "D", "Bénéfice net par action (de base)"),
     # Hors table de correspondance : collecté à part (USA seulement).
     ("market_cap", "I", "Capitalisation flottante (déclarée à la SEC)"),
 ]
@@ -89,6 +90,7 @@ US_GAAP = {
     "ppe_gross": [["PropertyPlantAndEquipmentGross"]],
     "equity_total": [["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"], ["StockholdersEquity"]],
     "retained_earnings": [["RetainedEarningsAccumulatedDeficit"]],
+    "eps": [["EarningsPerShareBasic"], ["EarningsPerShareBasicAndDiluted"]],
     "noncurrent_liabilities": [["LiabilitiesNoncurrent"]],
     "operating_income": [["OperatingIncomeLoss"]],
     "da": [
@@ -169,6 +171,7 @@ IFRS = {
     "ppe_gross": [["PropertyPlantAndEquipmentGrossCarryingAmount"]],
     "equity_total": [["Equity"]],
     "retained_earnings": [["RetainedEarnings"]],
+    "eps": [["BasicEarningsLossPerShare"]],
     "noncurrent_liabilities": [["NoncurrentLiabilities"]],
     "operating_income": [["ProfitLossFromOperatingActivities"]],
     "da": [

@@ -3,7 +3,7 @@ name: Collecte et publication
 
 on:
   schedule:
-    - cron: "17 4 * * 1"   # chaque lundi vers 4 h UTC
+    - cron: "17 4 * * *"   # chaque jour vers 4 h UTC (les étapes lourdes réutilisent le cache)
   workflow_dispatch:
   push:
     branches: [main]
@@ -45,7 +45,7 @@ jobs:
       - name: Cours de Bourse
         env:
           MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.POLYGON_API_KEY }}
-          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
         run: python collect/prices.py
       - name: Fusion
         run: python collect/build.py

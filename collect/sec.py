@@ -65,6 +65,8 @@ def collect(years, max_sic=None, log=print):
             i += 1
             period = f"CY{year}" if kind == "D" else f"CY{year}Q4I"
             url = FRAMES.format(tag=tag, period=period)
+            if tag.startswith("EarningsPerShare"):
+                url = url.replace("/USD/", "/USD-per-shares/")
             frame = get_json(url, cache_name=f"sec/frames/{tag}_{period}.json.gz",
                              max_age_days=7 if year in recent else None, min_interval=0.12)
             count = len(frame["data"]) if frame else 0

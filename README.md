@@ -67,9 +67,11 @@ Les téléchargements sont gardés dans `cache/` : les relances suivantes sont r
    ainsi pour pouvoir prévenir leur auteur en cas de trop nombreuses requêtes. L'adresse
    n'est envoyée qu'à la SEC, dans l'en-tête des requêtes, et un secret n'apparaît ni dans le
    code ni dans les journaux. Sans ce secret, une identification générique est utilisée.
-3. Cours de Bourse : créer les secrets `MASSIVE_API_KEY` (clé gratuite massive.com, ex-Polygon,
-   actions américaines) et `TWELVEDATA_API_KEY` (clé gratuite twelvedata.com, actions françaises).
+3. Cours de Bourse : créer les secrets `MASSIVE_API_KEY` (clé gratuite massive.com, ex-Polygon :
+   toutes les actions américaines en une requête) et `ALPHAVANTAGE_API_KEY` (clé gratuite
+   alphavantage.co : actions de Paris, 25 par jour en rotation, toutes à jour en une dizaine de jours).
    Sans ces secrets, l'outil utilise la capitalisation déclarée à la SEC (USA seulement).
+   La collecte tourne chaque jour ; les étapes lourdes (SEC, ESEF, PME) réutilisent leur cache.
 4. Lancer le workflow **Collecte et publication** (onglet Actions). Il tourne ensuite chaque lundi.
 
 ## Limites connues

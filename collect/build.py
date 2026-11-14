@@ -173,7 +173,7 @@ def main():
             row = []
             for y in years:
                 v = c["years"].get(str(y), {}).get(f)
-                row.append(None if v is None else round(v / 1e6, 3))
+                row.append(None if v is None else (round(v, 4) if f == "eps" else round(v / 1e6, 3)))
             if any(v is not None for v in row):
                 values[f] = row
         if "revenue" not in values:

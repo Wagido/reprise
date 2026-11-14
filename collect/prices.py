@@ -20,7 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from common import get_json, read_json, write_json
+from common import CACHE, get_json, read_json, write_json
 
 MASSIVE = "https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/{date}?adjusted=true"
 SHARES = "https://data.sec.gov/api/xbrl/frames/dei/EntityCommonStockSharesOutstanding/shares/{period}.json"
@@ -85,11 +85,105 @@ def us_shares():
     return out
 
 
+AMF = "https://www.info-financiere.gouv.fr/api/explore/v2.1/catalog/datasets/flux-amf-new-prod/records?"
+ALPHA = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={key}"
+FR_STATE = os.path.join(CACHE, "prices", "fr.json")
+FR_PER_RUN = 24   # offre gratuite Alpha Vantage : 25 requêtes par jour
+
+
+def fr_tickers(leis):
+    """Ticker Euronext le plus récent de chaque société, d'après la base de l'AMF (code LEI)."""
+    out = {}
+    leis = sorted(leis)
+    for k in range(0, len(leis), 40):
+        chunk = leis[k:k + 40]
+        where = "identificationsociete_iso_cd_lei in (" + ",".join(f"'{l}'" for l in chunk) + ")"
+        q = urllib.parse.urlencode({
+            "where": where, "limit": 1000,
+            "select": "identificationsociete_iso_cd_lei as lei, identificationsociete_iso_code_tkr_iso_cd_tkr as t, max(uin_dat_amf) as d",
+            "group_by": "identificationsociete_iso_cd_lei, identificationsociete_iso_code_tkr_iso_cd_tkr",
+        })
+        for attempt in range(8):
+            try:
+                d = get_json(AMF + q, cache_name=f"prices/amf_tickers_{k}.json.gz", max_age_days=30)
+                break
+            except Exception:  # ce serveur coupe souvent les connexions
+                time.sleep(5)
+        else:
+            continue
+        for r in (d or {}).get("results", []):
+            if r.get("t") and (r["lei"] not in out or r["d"] > out[r["lei"]][1]):
+                out[r["lei"]] = (r["t"].strip().upper(), r["d"])
+    log(f"France : ticker trouvé pour {len(out)} sociétés sur {len(leis)}")
+    return {lei: t for lei, (t, _) in out.items()}
+
+
+def fr_shares(c):
+    """Nombre d'actions = résultat net part du groupe / bénéfice par action (dernier exercice cohérent)."""
+    for y in sorted(c["years"], reverse=True):
+        r = c["years"][y]
+        ni, eps = r.get("net_income"), r.get("eps")
+        if ni and eps and abs(eps) > 1e-6 and (ni > 0) == (eps > 0):
+            return ni / eps
+    return None
+
+
+def fr_prices(companies):
+    """Rotation : à chaque passage, met à jour les cours les plus anciens (Alpha Vantage)."""
+    state = {}
+    if os.path.exists(FR_STATE):
+        with open(FR_STATE) as f:
+            state = json.load(f)
+    key = os.environ.get("ALPHAVANTAGE_API_KEY")
+    tickers = fr_tickers([c["lei"] for c in companies if c.get("lei")])
+    todo = [c for c in companies if c.get("lei") in tickers]
+    todo.sort(key=lambda c: (state.get(c["id"]) or [None, ""])[1])   # jamais mis à jour d'abord, puis les plus anciens
+    if key:
+        done = 0
+        for c in todo[:FR_PER_RUN]:
+            symbol = tickers[c["lei"]] + ".PAR"
+            try:
+                d = http_json(ALPHA.format(symbol=urllib.parse.quote(symbol), key=key), {})
+            except Exception as e:
+                log(f"  {symbol} : {e}")
+                continue
+            if "Note" in d or "Information" in d:   # quota atteint
+                log("France : quota Alpha Vantage atteint")
+                break
+            q = d.get("Global Quote") or {}
+            px = q.get("05. price")
+            if px:
+                state[c["id"]] = [float(px), q.get("07. latest trading day") or datetime.date.today().isoformat(), symbol]
+                done += 1
+            else:
+                state[c["id"]] = [None, datetime.date.today().isoformat(), symbol]
+            time.sleep(13)   # 5 requêtes par minute au plus
+        log(f"France : {done} cours mis à jour")
+        os.makedirs(os.path.dirname(FR_STATE), exist_ok=True)
+        with open(FR_STATE, "w") as f:
+            json.dump(state, f)
+    else:
+        log("France : pas de clé ALPHAVANTAGE_API_KEY, cours déjà connus seulement")
+    out, dates = {}, []
+    for c in companies:
+        st = state.get(c["id"])
+        sh = fr_shares(c)
+        if st and st[0] and sh and sh > 0:
+            out[c["id"]] = [round(st[0], 4), round(sh)]
+            dates.append(st[1])
+    return out, (min(dates) if dates else None), (max(dates) if dates else None)
+
+
 def main():
     companies = read_json("raw_us.json", {"companies": []})["companies"]
     prices, day = us_prices()
     shares = us_shares() if prices else {}
-    out = {"date_us": day, "us": {}}
+    if not prices:   # pas de clé : on garde les cours américains de la dernière collecte
+        prev = read_json("prices.json", {}) or {}
+        prices_prev = prev.get("us", {})
+    else:
+        prices_prev = {}
+    out = {"date_us": day, "us": dict(prices_prev)}
     for c in companies:
         if c["country"] != "US" or not c.get("ticker"):
             continue
@@ -99,6 +193,11 @@ def main():
         if px and sh:
             out["us"][c["id"]] = [round(px, 4), sh]
     log(f"USA : capitalisation pour {len(out['us'])} sociétés")
+    fr = read_json("raw_fr.json", {"companies": []})["companies"]
+    out["fr"], oldest, newest = fr_prices(fr)
+    out["date_fr"] = newest
+    out["date_fr_oldest"] = oldest
+    log(f"France : capitalisation pour {len(out['fr'])} sociétés")
     write_json("prices.json", out)
 
 
