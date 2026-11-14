@@ -374,3 +374,6 @@ td.q-bad { background: color-mix(in srgb, var(--bad) 12%, transparent); }
 .qlegend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 4px 0 8px; }
 .qlegend i.q-good { background: color-mix(in srgb, var(--good) 30%, transparent); }
 .qlegend i.q-bad { background: color-mix(in srgb, var(--bad) 26%, transparent); }
+.c-eq2 { background: color-mix(in srgb, var(--c-eq) 60%, #000 0%); background: #1f5c4b; }
+.c-minor { background: #6f9d8f; }
+@media (prefers-color-scheme: dark) { .c-eq2 { background: #1d4d40; } .c-minor { background: #5b8679; } }

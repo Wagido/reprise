@@ -194,6 +194,7 @@ def main():
             "fy": {y: c.get("fy_end", {}).get(str(y)) for y in years[-1:]},
             # Cours de clôture et nombre d'actions : capitalisation actuelle.
             "px": (prices.get("us", {}) if c["country"] == "US" else prices.get("fr", {})).get(c["id"]),
+            "ff": prices.get("us_float", {}).get(c["id"]),   # part du flottant (USA)
             "v": values,
         })
 

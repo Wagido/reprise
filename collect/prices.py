@@ -65,6 +65,70 @@ def us_prices():
     return {}, None
 
 
+def grouped_close(day, key):
+    """Cours de clôture de toutes les actions US à une date (ou le jour ouvré précédent), en cache."""
+    for _ in range(5):
+        if day.weekday() < 5:
+            path = f"prices/massive_{day.isoformat()}.json.gz"
+            d = None
+            cache = os.path.join(CACHE, path)
+            if os.path.exists(cache):
+                with open(cache, "rb") as f:
+                    import gzip
+                    d = json.loads(gzip.decompress(f.read()))
+            else:
+                try:
+                    d = http_json(MASSIVE.format(date=day.isoformat()), {"Authorization": f"Bearer {key}"})
+                except urllib.error.HTTPError as e:   # date hors de l'historique de l'offre gratuite
+                    log(f"  cours du {day} indisponible ({e.code})")
+                    return {}
+                finally:
+                    time.sleep(13)   # 5 requêtes par minute
+                if d and d.get("resultsCount"):
+                    import gzip
+                    os.makedirs(os.path.dirname(cache), exist_ok=True)
+                    with open(cache, "wb") as f:
+                        f.write(gzip.compress(json.dumps({"results": [{"T": r["T"], "c": r["c"]} for r in d["results"] if r.get("c")], "resultsCount": d["resultsCount"]}).encode()))
+            if d and d.get("resultsCount"):
+                return {r["T"]: r["c"] for r in d["results"]}
+        day -= datetime.timedelta(days=1)
+    return {}
+
+
+def us_float_share(companies, shares, max_dates=20):
+    """Part du flottant : capitalisation flottante déclarée (non-affiliés : hors dirigeants,
+    administrateurs et actionnaires de plus de 10 %) / capitalisation totale à la même date."""
+    key = os.environ.get("MASSIVE_API_KEY") or os.environ.get("POLYGON_API_KEY")
+    if not key:
+        return {}
+    y = datetime.date.today().year
+    latest = {}
+    for year in (y - 2, y - 1, y):
+        d = get_json(f"https://data.sec.gov/api/xbrl/frames/dei/EntityPublicFloat/USD/CY{year}Q2I.json",
+                     cache_name=f"sec/frames/dei_EntityPublicFloat_CY{year}Q2I.json.gz", max_age_days=7)
+        for row in (d or {}).get("data", []):
+            latest[row["cik"]] = (row["val"], row["end"])
+    by_date = {}
+    for cik, (_, end) in latest.items():
+        by_date.setdefault(end, []).append(cik)
+    dates = sorted(by_date, key=lambda dd: -len(by_date[dd]))[:max_dates]
+    out = {}
+    tick = {int(c["id"].split("-")[1]): c for c in companies if c.get("ticker")}
+    for dd in dates:
+        closes = grouped_close(datetime.date.fromisoformat(dd), key)
+        for cik in by_date[dd]:
+            c, sh = tick.get(cik), shares.get(cik)
+            if not c or not sh:
+                continue
+            px = closes.get(c["ticker"]) or closes.get(c["ticker"].replace("-", "."))
+            if px:
+                pct = latest[cik][0] / (px * sh)
+                if 0.02 <= pct <= 1.05:
+                    out[c["id"]] = round(min(pct, 1.0), 3)
+    log(f"USA : part du flottant pour {len(out)} sociétés")
+    return out
+
+
 def us_shares():
     """Dernier nombre d'actions déclaré par société (sur les 6 derniers trimestres)."""
     today = datetime.date.today()
@@ -178,9 +242,10 @@ def main():
     companies = read_json("raw_us.json", {"companies": []})["companies"]
     prices, day = us_prices()
     shares = us_shares() if prices else {}
+    prev = read_json("prices.json", {}) or {}
     if not prices:   # pas de clé : on garde les cours américains de la dernière collecte
-        prev = read_json("prices.json", {}) or {}
         prices_prev = prev.get("us", {})
+        day = prev.get("date_us")
     else:
         prices_prev = {}
     out = {"date_us": day, "us": dict(prices_prev)}
@@ -193,6 +258,7 @@ def main():
         if px and sh:
             out["us"][c["id"]] = [round(px, 4), sh]
     log(f"USA : capitalisation pour {len(out['us'])} sociétés")
+    out["us_float"] = us_float_share(companies, shares) if shares else (read_json("prices.json", {}) or {}).get("us_float", {})
     fr = read_json("raw_fr.json", {"companies": []})["companies"]
     out["fr"], oldest, newest = fr_prices(fr)
     out["date_fr"] = newest

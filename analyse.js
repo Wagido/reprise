@@ -58,7 +58,7 @@ const Analyse = (() => {
     const roe = ok(ni) && ok(eqGroup) && eqGroup > 0 ? ni / eqGroup : null;
 
     return {
-      A, CA, CL, cash, eq, NCA, NCL, debtLT, debtST, debtKnown, netDebt, bfr, ae, other, fr, tresoNette,
+      A, CA, CL, cash, eq, eqGroup, NCA, NCL, debtLT, debtST, debtKnown, netDebt, bfr, ae, other, fr, tresoNette,
       goodwill: g("goodwill"), intangibles: g("intangibles"), ppe: g("ppe"),
       rev, ebit, da, ebitda, pretax, tax, niTotal, ni, t, tUsed, staff: g("staff"),
       cogs: g("cost_of_revenue"), gp: g("gross_profit"), sga: g("sga"), rnd: g("rnd"),
@@ -175,7 +175,22 @@ const Analyse = (() => {
     return `<div class="bal">${colHtml}</div><div class="legend">${legend}</div>${note ? `<p class="note">${note}</p>` : ""}`;
   }
 
-  function economicBalance(f, cur) {
+  // Capitaux propres détaillés : part du groupe (flottant / actionnaires de contrôle si connu) et minoritaires.
+  function equityBlocks(c, f) {
+    const group = ok(f.eqGroup) ? f.eqGroup : f.eq;
+    const minor = ok(f.eqGroup) && ok(f.eq) ? f.eq - f.eqGroup : null;
+    const out = [];
+    if (c.ff && ok(group) && group > 0) {
+      out.push({ label: `CP part du groupe — flottant (${nf0.format(c.ff * 100)} %)`, value: group * c.ff, cls: "c-eq" });
+      out.push({ label: `CP part du groupe — actionnaires de contrôle et dirigeants (${nf0.format((1 - c.ff) * 100)} %)`, value: group * (1 - c.ff), cls: "c-eq2" });
+    } else {
+      out.push({ label: "Capitaux propres part du groupe", value: group, cls: "c-eq" });
+    }
+    if (ok(minor) && Math.abs(minor) > 0.005 * Math.abs(f.eq || 1)) out.push({ label: "Intérêts minoritaires", value: minor, cls: "c-minor" });
+    return out;
+  }
+
+  function economicBalance(f, cur, c) {
     if (!ok(f.ae) || !ok(f.eq) || !ok(f.netDebt)) return missing("Bilan économique", "actif, passif courant, trésorerie ou capitaux propres");
     const immoParts = [
       { label: "Goodwill", value: f.goodwill, cls: "c-gw" },
@@ -189,13 +204,13 @@ const Analyse = (() => {
     const html = balance([
       { title: "Actif économique", blocks: [...immo, { label: "BFR", value: f.bfr, cls: "c-bfr", neg: "BFR négatif (ressource)" }] },
       { title: "Capitaux investis", blocks: [
-        { label: "Capitaux propres", value: f.eq, cls: "c-eq" },
+        ...equityBlocks(c, f),
         { label: "Provisions et autres passifs LT", value: f.other, cls: "c-other", neg: "Autres actifs nets" },
         { label: "Dette nette", value: f.netDebt, cls: "c-debt", neg: "Trésorerie nette" },
       ] },
     ], 300, !f.debtKnown ? "Dette financière non publiée sous une étiquette standard : elle est comptée dans « autres passifs »." : "");
     return card("Bilan économique", `M ${cur}`, html,
-      `Actif économique = immobilisations + BFR ${M(f.ae)}. Il est financé par les capitaux propres et la dette nette.
+      `${c && c.ff ? `Flottant : ${nf0.format(c.ff * 100)} % du capital est détenu par le public ; le reste par les dirigeants, administrateurs et actionnaires de plus de 10 % (déclaration à la SEC, rapportée à la capitalisation à la même date). Le flottant ne change pas la valeur des capitaux propres : il mesure la liquidité du titre et la possibilité d'une prise de contrôle (un flottant faible signale un actionnaire de référence qui décide). ` : c && c.c === "FR" ? "Flottant non disponible pour les sociétés françaises (pas de source publique gratuite). " : ""}Actif économique = immobilisations + BFR ${M(f.ae)}. Il est financé par les capitaux propres et la dette nette.
        BFR = ${M(f.bfr)}, soit ${ok(f.bfrDays) ? nf0.format(f.bfrDays) + " jours de CA" : "—"}.`);
   }
 
@@ -619,7 +634,7 @@ const Analyse = (() => {
       ${kpi("Rotation de l'actif économique", X(f.rotation), bench(st, "rotation", f.rotation, X))}
       ${kpi("État de l'outil (immo. nettes / brutes)", P(f.wear), `<small class="bench">${wearTxt(f.wear)}</small>`)}
     </div>`;
-    return step(2, "Les investissements", "immobilisations et BFR", kpis + economicBalance(f, c.cur) +
+    return step(2, "Les investissements", "immobilisations et BFR", kpis + economicBalance(f, c.cur, c) +
       card("Besoin en fonds de roulement", "", bfrTable, bfrMsg + " Une hausse du BFR est un besoin de financement, une baisse libère de la trésorerie. Le BFR à la clôture n'est qu'une photo : on le lit en tendance. Ratios calculés sur le CA hors taxes (la TVA n'est pas publiée).") +
       card("Politique d'investissement", `M ${c.cur}`, invTable,
         (invMsg ? invMsg + " " : "") + "Capex supérieurs aux amortissements : investissements de capacité ; égaux : maintien ; inférieurs : retrait."));
