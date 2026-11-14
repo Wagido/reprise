@@ -13,8 +13,7 @@
   --bar3: #4f9a6a;
   --shadow: 0 8px 30px rgba(0, 0, 0, .12);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     --bg: #12171a;
     --panel: #1a2125;
     --ink: #e4eaed;
@@ -29,7 +28,7 @@
     --bar3: #72bf8c;
     --shadow: 0 8px 30px rgba(0, 0, 0, .5);
   }
-}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
@@ -148,12 +147,11 @@ svg text { fill: var(--muted); font-size: 11px; }
   --c-bfr: #d39a45; --c-eq: #2f7f68; --c-debt: #c0584d; --c-other: #9aa5ab; --c-fr: #e8e2c9;
   --c-ink: #ffffff; --c-fr-ink: #3b3a2e;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     --c-immo: #4e6f88; --c-gw: #7a62a0; --c-intang: #6a83b6; --c-ppe: #426b7f;
     --c-bfr: #b8822f; --c-eq: #2a6f5b; --c-debt: #a84a40; --c-other: #6b767c; --c-fr: #d9d2b2;
   }
-}
+
 .bal { display: flex; gap: 8px; align-items: flex-end; justify-content: center; }
 .bcol { flex: 1 1 0; max-width: 200px; min-width: 0; text-align: center; }
 .bstack { display: flex; flex-direction: column; justify-content: flex-end; }
@@ -326,7 +324,8 @@ table.watch input[type="text"] { width: 180px; }
 
 /* ---------- Nuages (palette validée : bleu / orange, clair et sombre) ---------- */
 :root { --fr: #2a78d6; --us: #eb6834; --as: #1baf7a; }
-@media (prefers-color-scheme: dark) { :root { --fr: #3987e5; --us: #d95926; --as: #199e70; } }
+:root[data-theme="dark"] { --fr: #3987e5; --us: #d95926; --as: #199e70; }
+
 #nuage { width: 100%; height: auto; display: block; }
 #nuage .grid { stroke: var(--line); } #nuage .grid.zero { stroke: var(--muted); }
 #nuage .ax { fill: var(--muted); font-size: 11px; } #nuage .ax.t { font-size: 12px; }
@@ -368,16 +367,18 @@ details.step[open] .open-hint::after { content: " ▴"; }
 .vbar-txt small { color: var(--muted); }
 
 /* ---------- Tableau digeste ---------- */
-td.q-good { background: color-mix(in srgb, var(--good) 14%, transparent); }
-td.q-bad { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+td.q-good { color: var(--good); font-weight: 600; }
+td.q-bad { color: var(--bad); }
 .linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; text-decoration: underline; padding: 0 6px; font-size: 13px; }
 .qlegend { font-size: 12px; color: var(--muted); margin-left: 8px; }
 .qlegend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 4px 0 8px; }
-.qlegend i.q-good { background: color-mix(in srgb, var(--good) 30%, transparent); }
-.qlegend i.q-bad { background: color-mix(in srgb, var(--bad) 26%, transparent); }
+.qlegend i.q-good { background: var(--good); width: 8px; height: 8px; border-radius: 50%; }
+.qlegend i.q-bad { background: var(--bad); width: 8px; height: 8px; border-radius: 50%; }
 .c-eq2 { background: color-mix(in srgb, var(--c-eq) 60%, #000 0%); background: #1f5c4b; }
 .c-minor { background: #6f9d8f; }
-@media (prefers-color-scheme: dark) { .c-eq2 { background: #1d4d40; } .c-minor { background: #5b8679; } }
+:root[data-theme="dark"] .c-eq2 { background: #1d4d40; }
+:root[data-theme="dark"] .c-minor { background: #5b8679; }
+
 
 /* ---------- Tableau de bord 4 étapes (couleurs d'état réservées : bon / à surveiller / alerte) ---------- */
 .tdb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -413,3 +414,18 @@ circle.dp.hot { stroke: var(--ink); stroke-width: 2.5; }
 .bb { position: absolute; top: 0; bottom: 0; background: var(--bar1); border-radius: 2px; }
 .bb.neg { background: var(--bad); }
 .bv { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* En-tête : onglets et boutons passent à la ligne au lieu de déborder. */
+.top { flex-wrap: wrap; }
+.nav { min-width: 0; max-width: 100%; }
+.tabs { flex-wrap: wrap; justify-content: flex-end; }
+.spaces { flex-wrap: wrap; }
+.filters .actions { flex-wrap: wrap; }
+html, body { max-width: 100%; overflow-x: hidden; }
+/* Tableau principal : lignes plus aérées, séparateurs discrets en mode sombre. */
+#table td { border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+#table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--bg) 50%, transparent); }
+
+/* Bouton clair / sombre */
+.theme-btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; line-height: 1; }
+.brand { flex: 1 1 auto; }

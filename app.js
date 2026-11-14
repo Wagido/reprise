@@ -153,7 +153,7 @@ function readFilters() {
     year: Number($("year").value),
     revMin: num("revMin"), revMax: num("revMax"),
     ebitdaMin: num("ebitdaMin"), levMax: num("levMax"),
-    profit3: $("profit3").checked, complete: $("complete").checked,
+    profit3: $("profit3").checked, complete: $("complete").checked, banks: $("banks").checked,
   };
 }
 
@@ -175,6 +175,9 @@ function compute(ignoreSector = false) {
     if (f.ebitdaMin !== null && !(ok(m.ebitdaMargin) && m.ebitdaMargin * 100 >= f.ebitdaMin)) continue;
     if (f.levMax !== null && !(ok(m.netDebt) && (m.netDebt <= 0 || (ok(m.leverage) && m.leverage <= f.levMax)))) continue;
     if (f.profit3 && !(m.seenYears >= 3 && m.profitYears === 3)) continue;
+    // Banques et assurances : EBE, BFR et dette nette n'ont pas de sens ; exclues par défaut,
+    // sauf si on les demande ou si on filtre explicitement leur secteur.
+    if (!f.banks && c.s === "finance" && f.sector !== "finance") continue;
     if (f.complete && !m.complete) continue;
     out.push({ c, m });
   }
@@ -611,7 +614,7 @@ function exportCsv() {
 }
 
 // ---------- Mémoire des filtres (pratique, non essentielle) ----------
-const FILTER_IDS = ["q", "country", "sector", "year", "revMin", "revMax", "ebitdaMin", "levMax", "profit3", "complete"];
+const FILTER_IDS = ["q", "country", "sector", "year", "revMin", "revMax", "ebitdaMin", "levMax", "profit3", "complete", "banks"];
 function saveFilters() {
   try {
     const o = {};
@@ -756,6 +759,16 @@ async function init() {
   $("year").innerHTML = [...meta.years].reverse().map((y) => `<option>${y}</option>`).join("");
   $("year").value = String(defaultYear());
   loadFilters();
+  const tb = $("themeBtn");
+  const setIcon = () => { tb.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; };
+  setIcon();
+  tb.onclick = () => {
+    const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem("reprise.theme", t); } catch (e) { /* ignoré */ }
+    setIcon();
+    render();   // les graphiques reprennent les couleurs du thème
+  };
   bind();
   bindCompare();
   let start = "list";

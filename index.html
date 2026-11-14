@@ -10,13 +10,17 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="lib/leaflet.css">
 <link rel="stylesheet" href="style.css">
+<script>
+  // Thème : clair par défaut, sombre si choisi (mémorisé dans le navigateur).
+  try { document.documentElement.dataset.theme = localStorage.getItem("reprise.theme") || "light"; } catch (e) { document.documentElement.dataset.theme = "light"; }
+</script>
 </head>
 <body>
 <header class="top">
   <div class="brand">
     <img src="icon.svg" alt="" width="28" height="28">
     <div>
-      <h1>Reprise</h1>
+      <h1>Reprise <button class="theme-btn" id="themeBtn" title="Mode clair / sombre" aria-label="Basculer entre mode clair et mode sombre">☾</button></h1>
       <p class="sub" id="dataInfo">Chargement des données…</p>
     </div>
   </div>
@@ -52,6 +56,7 @@
   <label>Dette nette / EBITDA max <input type="number" id="levMax" step="0.5" inputmode="decimal" placeholder="—"></label>
   <label class="check"><input type="checkbox" id="profit3"> Bénéficiaire 3 ans de suite</label>
   <label class="check"><input type="checkbox" id="complete"> Comptes complets seulement</label>
+  <label class="check" title="Pour les banques et assurances, EBE, BFR et dette nette n'ont pas de sens"><input type="checkbox" id="banks"> Inclure banques et assurances</label>
   <div class="actions">
     <button id="reset" class="ghost">Réinitialiser</button>
     <button id="csv">Exporter CSV</button>
