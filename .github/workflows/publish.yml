@@ -1,0 +1,44 @@
+# Publication rapide : met en ligne le code actuel avec les données déjà publiées sur le site,
+# sans relancer la collecte (utile après une modification de l'interface).
+name: Publication rapide
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-rapide
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Site avec les données en ligne
+        run: |
+          mkdir -p _site/data
+          cp index.html app.js analyse.js pme.js lbo.js picking.js nuages.js tdb.js style.css sw.js manifest.webmanifest icon.svg _site/
+          cp -r lib _site/
+          for f in companies.json pme.json; do
+            curl -fsSL --retry 3 "https://wagido.github.io/reprise/data/$f" -o "_site/data/$f"
+          done
+          ls -la _site/data
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
