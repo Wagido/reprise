@@ -539,7 +539,7 @@ h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
   body[data-view="list"] .detail, body[data-view="pme"] .detail { width: 44vw; }
   body[data-view="list"] main, body[data-view="list"] #filters, body[data-view="pme"] main { margin-right: 44vw; }
 }
-:root[data-theme="light"] { color-scheme: light; }
+:root, :root[data-theme="light"] { color-scheme: only light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 .schart .lbl { stroke-linejoin: round; stroke-width: 2.5px; }
 .tdb-panel svg { width: 100%; height: auto; max-height: none; }
