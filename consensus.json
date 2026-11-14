@@ -1,0 +1,351 @@
+{
+ "updated": "2026-11-14",
+ "universe": "CAC 40",
+ "note": "Consensus des analystes relevé à la main sur les sites cités : PER attendu pour 2026 et potentiel = objectif de cours médian (ou moyen) / cours à la date de la source. Dates et sources différentes : chiffres indicatifs.",
+ "companies": [
+  {
+   "lei": "969500QZC2Q0TK11NV07",
+   "n": "Accor",
+   "per26": 21.6,
+   "up": 0.134,
+   "date": "28/08/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/accor-FR0000120404.html"
+  },
+  {
+   "lei": "969500MMPQVHK671GT54",
+   "n": "Air Liquide",
+   "per26": 28.2,
+   "up": 0.154,
+   "date": "04/08/2026",
+   "src": "Zonebourse",
+   "url": "https://www.zonebourse.com/cours/action/AIR-LIQUIDE-4605/consensus/"
+  },
+  {
+   "lei": "MINO79WLOO247M1IL051",
+   "n": "Airbus",
+   "per26": 26.7,
+   "up": 0.18,
+   "date": "15/09/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/airbus-NL0000235190.html"
+  },
+  {
+   "lei": "2EULGUTUI56JI9SAL165",
+   "n": "ArcelorMittal",
+   "per26": 14.5,
+   "up": 0.317,
+   "date": "09/10/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/arcelormittal-sa/LU1598757687.html"
+  },
+  {
+   "lei": "F5WCUMTUM4RKZ1MAIE39",
+   "n": "AXA",
+   "per26": 10.8,
+   "up": 0.216,
+   "date": "23/10/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/axa/FR0000120628.html"
+  },
+  {
+   "lei": "R0MUWSFPU8MPRO8K5P83",
+   "n": "BNP Paribas",
+   "per26": 9.0,
+   "up": 0.051,
+   "date": "2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/bnp-paribas-act-a/FR0000131104.html"
+  },
+  {
+   "lei": "969500MOCLNQFNZN0D63",
+   "n": "Bouygues",
+   "per26": 14.1,
+   "up": 0.24,
+   "date": "12/08/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/bouygues-FR0000120503.html"
+  },
+  {
+   "lei": "969500TPU5T3HA5D1F11",
+   "n": "Bureau Veritas",
+   "per26": 17.8,
+   "up": 0.13,
+   "date": "20/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/bureau-veritas-FR0006174348.html"
+  },
+  {
+   "lei": "96950077L0TN7BAROX36",
+   "n": "Capgemini",
+   "per26": 8.2,
+   "up": 0.311,
+   "date": "25/09/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/capgemini-FR0000125338.html"
+  },
+  {
+   "lei": "549300B8P6MUJ1YWTS08",
+   "n": "Carrefour",
+   "per26": 9.2,
+   "up": 0.065,
+   "date": "07/08/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/carrefour/FR0000120172.html"
+  },
+  {
+   "lei": "969500TJ5KRTCJQWXH05",
+   "n": "Crédit Agricole",
+   "per26": 7.1,
+   "up": 0.342,
+   "date": "09/10/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/credit-agricole-FR0000045072.html"
+  },
+  {
+   "lei": "969500KMUQ2B6CBAF162",
+   "n": "Danone",
+   "per26": 18.0,
+   "up": 0.136,
+   "date": "07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/en/analyst-consensus/danone/FR0000120644.html"
+  },
+  {
+   "lei": "96950065LBWY0APQIM86",
+   "n": "Dassault Systèmes",
+   "per26": null,
+   "up": 0.099,
+   "date": "05/08/2026",
+   "src": "Zonebourse",
+   "url": "https://ch.zonebourse.com/cours/action/DASSAULT-SYSTEMES-SE-124542460/consensus/"
+  },
+  {
+   "lei": "LAXUQCHT4FH58LRZDY46",
+   "n": "Engie",
+   "per26": 11.5,
+   "up": 0.13,
+   "date": "31/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/ENGIE-FR0010208488.html"
+  },
+  {
+   "lei": "549300M3VH1A3ER1TB49",
+   "n": "EssilorLuxottica",
+   "per26": 23.3,
+   "up": 0.469,
+   "date": "20/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/essilorluxottica-FR0000121667.html"
+  },
+  {
+   "lei": "529900JEHFM47DYY3S57",
+   "n": "Eurofins Scientific",
+   "per26": 17.3,
+   "up": 0.088,
+   "date": "03/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/eurofins-scient-FR0014000MR3.html"
+  },
+  {
+   "lei": "969500Y4IJGHJE2MTJ13",
+   "n": "Hermès",
+   "per26": 36.0,
+   "up": 0.19,
+   "date": "04/11/2026",
+   "src": "TIKR",
+   "url": "https://www.tikr.com/fr/blog/hermes-stock-has-always-looked-expensive-heres-what-its-earnings-estimates-say-about-the-premium"
+  },
+  {
+   "lei": "549300VGEJKB7SVUZR78",
+   "n": "Kering",
+   "per26": 38.2,
+   "up": 0.135,
+   "date": "03/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/kering-FR0000121485.html"
+  },
+  {
+   "lei": "529900JI1GG6F7RKVI53",
+   "n": "L'Oréal",
+   "per26": 28.0,
+   "up": 0.12,
+   "date": "15/09/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/l-oreal-FR0000120321.html"
+  },
+  {
+   "lei": "969500XXRPGD7HCAFA90",
+   "n": "Legrand",
+   "per26": 22.9,
+   "up": 0.255,
+   "date": "24/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/legrand/FR0010307819.html"
+  },
+  {
+   "lei": "IOG4E947OATN0KJYSD45",
+   "n": "LVMH",
+   "per26": null,
+   "up": 0.258,
+   "date": "05/2026",
+   "src": "StockAnalysis (S&P Global)",
+   "url": "https://stockanalysis.com/quote/epa/MC/forecast/"
+  },
+  {
+   "lei": "549300SOSI58J6VIW052",
+   "n": "Michelin",
+   "per26": 12.4,
+   "up": -0.039,
+   "date": "2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/michelin-FR001400AJ45.html"
+  },
+  {
+   "lei": "969500MCOONR8990S771",
+   "n": "Orange",
+   "per26": null,
+   "up": null,
+   "date": "—",
+   "src": "Investing.com",
+   "url": "https://fr.investing.com/equities/france-telecom-consensus-estimates"
+  },
+  {
+   "lei": "52990097YFPX9J0H5D87",
+   "n": "Pernod Ricard",
+   "per26": 12.2,
+   "up": 0.165,
+   "date": "07/08/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/pernod-ricard-FR0000120693.html"
+  },
+  {
+   "lei": "2138004KW8BV57III342",
+   "n": "Publicis Groupe",
+   "per26": 10.7,
+   "up": 0.29,
+   "date": "03/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/publicis-groupe-sa-FR0000130577.html"
+  },
+  {
+   "lei": "969500F7JLTX36OUI695",
+   "n": "Renault",
+   "per26": null,
+   "up": 0.278,
+   "date": "2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/en/analyst-consensus/renault/FR0000131906.html"
+  },
+  {
+   "lei": "969500UIC89GT3UL7L24",
+   "n": "Safran",
+   "per26": null,
+   "up": 0.088,
+   "date": "24/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/en/analyst-consensus/safran/FR0000073272.html"
+  },
+  {
+   "lei": "NFONVGN05Z0FMN5PEC35",
+   "n": "Saint-Gobain",
+   "per26": 13.4,
+   "up": 0.324,
+   "date": "20/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/saint-gobain/FR0000125007.html"
+  },
+  {
+   "lei": "549300E9PC51EN656011",
+   "n": "Sanofi",
+   "per26": 9.1,
+   "up": 0.208,
+   "date": "07/08/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/sanofi/FR0000120578.html"
+  },
+  {
+   "lei": "969500A1YF1XUYYXS284",
+   "n": "Schneider Electric",
+   "per26": 26.9,
+   "up": 0.18,
+   "date": "20/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/actions/schneider-electric-FR0000121972.html"
+  },
+  {
+   "lei": "O2RNE8IBXP4R0TD8PU41",
+   "n": "Société Générale",
+   "per26": 9.4,
+   "up": 0.16,
+   "date": "10/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/societe-generale/FR0000130809.html"
+  },
+  {
+   "lei": "549300LKT9PW7ZIBDF31",
+   "n": "Stellantis",
+   "per26": 7.3,
+   "up": 0.098,
+   "date": "2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/en/stocks/stellantis-nv-NL00150001Q9.html"
+  },
+  {
+   "lei": "213800Z8NOHIKRI42W10",
+   "n": "STMicroelectronics",
+   "per26": null,
+   "up": 0.793,
+   "date": "23/10/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/stmicroelectronics/NL0000226223.html"
+  },
+  {
+   "lei": "529900FNDVTQJOVVPZ19",
+   "n": "Thales",
+   "per26": null,
+   "up": 0.225,
+   "date": "non daté",
+   "src": "MarketScreener",
+   "url": "https://www.marketscreener.com/quote/stock/THALES-437239/consensus/"
+  },
+  {
+   "lei": "529900S21EQ1BO4ESM68",
+   "n": "TotalEnergies",
+   "per26": 6.9,
+   "up": 0.09,
+   "date": "14/11/2026",
+   "src": "Boursorama",
+   "url": "https://www.boursorama.com/cours/consensus/1rPTTE/",
+   "roce_pub": 0.126,
+   "roce_pub_note": "ROACE 2025 publié par TotalEnergies (hors éléments exceptionnels et effet stocks)"
+  },
+  {
+   "lei": "969500SHQITWXSIS7N89",
+   "n": "Unibail-Rodamco-Westfield",
+   "per26": null,
+   "up": 0.29,
+   "date": "21/10/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/unibail-rodamco-we/FR0013326246.html"
+  },
+  {
+   "lei": "969500LENY69X51OOT31",
+   "n": "Veolia",
+   "per26": 15.5,
+   "up": 0.093,
+   "date": "24/07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/avis-analystes-consensus/veolia-environ/FR0000124141.html"
+  },
+  {
+   "lei": "213800WFQ334R8UXUG83",
+   "n": "Vinci",
+   "per26": 14.0,
+   "up": 0.217,
+   "date": "07/2026",
+   "src": "Idéal Investisseur",
+   "url": "https://www.ideal-investisseur.fr/en/analyst-consensus/vinci/FR0000125486.html"
+  }
+ ]
+}

@@ -696,7 +696,7 @@ function onFilter() {
   timer = setTimeout(() => { state.shown = PAGE; render(); }, 150);
 }
 
-const SPACE_OF = { list: "invest", pick: "invest", nuages: "invest", tdb: "invest", sectors: "invest", compare: "invest", pme: "reprise", ptdb: "reprise", lbo: "reprise", help: "method" };
+const SPACE_OF = { banc: "invest", list: "invest", pick: "invest", nuages: "invest", tdb: "invest", sectors: "invest", compare: "invest", pme: "reprise", ptdb: "reprise", lbo: "reprise", help: "method" };
 const lastView = { invest: "tdb", reprise: "ptdb", method: "help" };
 // Sur grand écran, l'onglet Analyse garde la fiche ouverte à droite (méthode tant qu'aucune société n'est choisie).
 const splitMode = () => (state.view === "list" || state.view === "pme") && window.innerWidth >= 1000;
@@ -722,7 +722,7 @@ function setView(v) {
     b.hidden = b.dataset.in !== space;
     b.setAttribute("aria-selected", String(b.dataset.view === v));
   });
-  for (const s of ["list", "sectors", "compare", "pick", "nuages", "tdb", "pme", "ptdb", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  for (const s of ["list", "sectors", "compare", "pick", "nuages", "banc", "tdb", "pme", "ptdb", "lbo", "help"]) $("view-" + s).hidden = s !== v;
   document.body.dataset.view = v;
   syncHeader();
   if (splitMode()) { if ($("detail").hidden || !$("detailBody").innerHTML || state.splitOf !== v) showMethodPanel(); state.splitOf = v; }
@@ -734,6 +734,7 @@ function setView(v) {
   if (v === "lbo") LBO.mount();
   if (v === "pick") Picking.mount();
   if (v === "nuages") Nuages.mount();
+  if (v === "banc") Banc.mount();
   if (v === "tdb") TDB.mount();
   try { localStorage.setItem("reprise.view", v); } catch (e) { /* ignoré */ }
   render();

@@ -587,3 +587,27 @@ details.step .open-hint { font-size: 11.5px; }
 h3.part { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 16px 0 4px; }
 h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .note.warn { color: var(--bad); }
+
+/* ---------- Banc d'essai : l'outil face au consensus ---------- */
+.banc-intro h3 small { font-weight: 400; color: var(--muted); }
+.banc-grid { display: grid; gap: 10px; }
+.banc-chart { position: relative; width: 100%; }
+.banc-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.banc-chart .grid { stroke: var(--line); } .banc-chart .zero { stroke: var(--muted); }
+.banc-chart .ref { stroke: var(--muted); stroke-dasharray: 4 4; }
+.banc-chart .ax { fill: var(--muted); font-size: 11px; }
+.banc-chart .nm { fill: var(--ink); font-size: 12px; cursor: pointer; }
+.banc-chart circle, .banc-chart rect[data-open] { cursor: pointer; }
+.banc-chart .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: var(--shadow); max-width: 280px; z-index: 3; }
+.card h3 .part-n { margin-right: 6px; vertical-align: 1px; }
+.sw2 { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.sw2.tick { width: 3px; height: 13px; border-radius: 1px; background: var(--muted); }
+.sw2.dia { width: 9px; height: 9px; border-radius: 1px; transform: rotate(45deg); background: var(--us); }
+.banc-find { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 13px; }
+.banc-find li { display: grid; grid-template-columns: 16px 1fr; gap: 6px; }
+.banc-find .dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; }
+.banc-find .dot.good { background: var(--good); } .banc-find .dot.warn { background: #c98a1a; } .banc-find .dot.bad { background: var(--bad); }
+.banc-tbl td.stale { color: #c98a1a; }
+.banc-tbl th.grp, .banc-tbl td.grp { border-left: 2px solid var(--line); }
+.banc-tbl tbody tr { cursor: pointer; }
+.banc-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; }

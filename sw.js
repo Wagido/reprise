@@ -1,7 +1,7 @@
 // Hors ligne : l'interface est servie depuis le cache, les données sont
 // rechargées depuis le réseau quand il est là (sinon, dernière copie).
-const CACHE = "reprise-v20";
-const SHELL = ["./", "index.html", "style.css", "app.js", "analyse.js", "pme.js", "lbo.js", "picking.js", "nuages.js", "tdb.js", "lib/leaflet.js", "lib/leaflet.css", "icon.svg", "manifest.webmanifest"];
+const CACHE = "reprise-v21";
+const SHELL = ["./", "index.html", "style.css", "app.js", "analyse.js", "pme.js", "lbo.js", "picking.js", "nuages.js", "tdb.js", "banc.js", "lib/leaflet.js", "lib/leaflet.css", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

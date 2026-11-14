@@ -8,7 +8,8 @@ intéressé par la reprise d'entreprise et le stock picking.
 ## Deux espaces
 - **Investir** (sociétés cotées) : Vue générale (`tdb.js`, 2 × 2 nuages, verdicts), Analyse (tableau + fiche
   toujours visible à droite sur grand écran, méthode repliable sinon), Stock picking, Secteurs (4 nuages de
-  bulles par étape + tableau), Ratios (`nuages.js`, dont marge × rotation à iso-ROCE ; ex-« Comparer »).
+  bulles par étape + tableau), Ratios (`nuages.js`, dont marge × rotation à iso-ROCE ; ex-« Comparer »), Banc d'essai (`banc.js` : l'analyse
+  de l'outil face au consensus des analystes, CAC 40 ; consensus relevé à la main dans `consensus.json`, daté et sourcé).
 - **Reprendre** (PME françaises 2–50 M€), même logique : Vue générale PME (4 nuages, verdicts, `TDB.panel`
   réutilisé), Carte et analyse (Leaflet Plan IGN + tableau + fiche à droite), Simulateur LBO de repreneur.
 - **Méthode** : texte du plan en 4 étapes (`Analyse.methodHtml`).
