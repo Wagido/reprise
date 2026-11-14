@@ -42,6 +42,11 @@ jobs:
         run: python collect/esef.py
       - name: PME françaises
         run: python collect/pme.py
+      - name: Cours de Bourse
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.POLYGON_API_KEY }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+        run: python collect/prices.py
       - name: Fusion
         run: python collect/build.py
       - name: Site

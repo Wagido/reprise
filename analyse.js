@@ -7,7 +7,7 @@
 
 const Analyse = (() => {
   // ---------- Agrégats ----------
-  function figures(c, i) {
+  let figures = function (c, i) {
     const g = (f, j = i) => (j >= 0 ? val(c, f, j, true) : null);
     const A = g("total_assets");
     let CA = g("current_assets"), CL = g("current_liabilities");
@@ -79,7 +79,9 @@ const Analyse = (() => {
       fcf: ok(g("cfo")) && ok(g("capex")) ? g("cfo") - g("capex") : null,
       capexDa: ok(g("capex")) && ok(da) && da > 0 ? g("capex") / da : null,
       capexRev: ok(g("capex")) && ok(rev) && rev > 0 ? g("capex") / rev : null,
-      mcap: g("market_cap"),
+      // Capitalisation : cours actuel × nombre d'actions si disponible, sinon « public float » SEC de l'année.
+      mcap: c.px && c.px[0] && c.px[1] ? c.px[0] * c.px[1] / 1e6 : g("market_cap"),
+      mcapLive: !!(c.px && c.px[0] && c.px[1]),
       // Fiche 2 : état de l'outil industriel = immobilisations nettes / brutes.
       wear: ok(g("ppe")) && ok(g("ppe_gross")) && g("ppe_gross") > 0 ? g("ppe") / g("ppe_gross") : null,
       // Fiche 3 : ratios de liquidité.
@@ -97,11 +99,10 @@ const Analyse = (() => {
         if (liab <= 0) return null;
         return 6.56 * (CA - CL) / A + 3.26 * re / A + 6.72 * ebit / A + 1.05 * eq / liab;
       })(),
-      divYield: ok(g("dividends")) && ok(g("market_cap")) && g("market_cap") > 0 ? g("dividends") / g("market_cap") : null,
+      divYield: null,
       bookYield: ok(g("dividends")) && ok(eqGroup) && eqGroup > 0 ? g("dividends") / eqGroup : null,
       roa: ok(ni) && ok(A) && A > 0 ? ni / A : null,
-      ev: ok(g("market_cap")) && ok(netDebt) ? g("market_cap") + netDebt : null,
-      evEbitda: ok(g("market_cap")) && ok(netDebt) && ok(ebitda) && ebitda > 0 ? (g("market_cap") + netDebt) / ebitda : null,
+      ev: null, evEbitda: null, evSales: null, per: null, fcfYield: null,
       growth: (() => {
         const r3 = g("revenue", i - 3);
         return ok(rev) && ok(r3) && rev > 0 && r3 > 0 ? Math.pow(rev / r3, 1 / 3) - 1 : null;
@@ -111,7 +112,23 @@ const Analyse = (() => {
         return ok(rev) && ok(r1) && r1 > 0 ? rev / r1 - 1 : null;
       })(),
     };
-  }
+  };
+
+  // Multiples de marché, calculés après coup à partir de la capitalisation retenue.
+  const _figures = figures;
+  figures = function (c, i) {
+    const f = _figures(c, i);
+    const m = f.mcap;
+    if (ok(m) && m > 0) {
+      f.ev = ok(f.netDebt) ? m + f.netDebt : null;
+      f.evEbitda = ok(f.ev) && ok(f.ebitda) && f.ebitda > 0 ? f.ev / f.ebitda : null;
+      f.evSales = ok(f.ev) && ok(f.rev) && f.rev > 0 ? f.ev / f.rev : null;
+      f.per = ok(f.ni) && f.ni > 0 ? m / f.ni : null;
+      f.fcfYield = ok(f.fcf) ? f.fcf / m : null;
+      f.divYield = ok(f.div) ? f.div / m : null;
+    }
+    return f;
+  };
 
   const M = (v) => (ok(v) ? (Math.abs(v) >= 100 ? nf0.format(v) : nf1.format(v)) : "—");
   const P = (v) => (ok(v) ? nf1.format(v * 100) + " %" : "—");
@@ -353,7 +370,7 @@ const Analyse = (() => {
 
   // ---------- Comparaison au secteur ----------
   const sectorCache = {};
-  const BENCH = ["growth", "ebitdaMargin", "margin", "netMargin", "bfrDays", "capexRev", "rotation", "ndEbitda",
+  const BENCH = ["per", "evSales", "fcfYield", "growth", "ebitdaMargin", "margin", "netMargin", "bfrDays", "capexRev", "rotation", "ndEbitda",
     "coverage", "roce", "roe", "evEbitda", "zScore", "divYield", "bookYield", "liqGen", "growth1"];
   function sectorStats(sector, i) {
     const key = sector + "|" + i;
@@ -626,8 +643,19 @@ const Analyse = (() => {
     const free = ok(fcfPre) ? fcfPre - interest * (1 - f.tUsed) : null;
     const years = ok(free) && free > 0 ? debt / free : null;
     const own = ok(f.evEbitda) ? ` · société elle-même en Bourse : ${X(f.evEbitda)}` : "";
+    const pd = state.meta.price_date && state.meta.price_date[c.c];
+    const market = ok(f.mcap) ? `<h4 class="sub">En Bourse ${f.mcapLive && pd ? `au ${new Date(pd).toLocaleDateString("fr-FR")}` : "(capitalisation déclarée à la SEC)"}</h4>
+      <div class="kpis">
+        ${kpi(`Capitalisation (M ${esc(c.cur)})`, M(f.mcap), c.px ? `<small class="bench">cours ${nf1.format(c.px[0])} × ${nf0.format(c.px[1] / 1e6)} M d'actions</small>` : "")}
+        ${kpi("Valeur d'entreprise", M(f.ev))}
+        ${kpi("PER", X(f.per), bench(st, "per", f.per, X, false))}
+        ${kpi("VE / EBE", X(f.evEbitda), bench(st, "evEbitda", f.evEbitda, X, false))}
+        ${kpi("VE / CA", X(f.evSales), bench(st, "evSales", f.evSales, X, false))}
+        ${kpi("Rendement du flux disponible", P(f.fcfYield), bench(st, "fcfYield", f.fcfYield, P))}
+        ${kpi("Rendement du dividende", P(f.divYield), bench(st, "divYield", f.divYield, P))}
+      </div><h4 class="sub">Prix de reprise par multiple</h4>` : "";
     const lbLight = !ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red";
-    const body = `<div class="kpis">
+    const body = market + `<div class="kpis">
         ${kpi("Multiple VE / EBE retenu", `<input class="param" type="number" step="0.5" min="0" max="60" data-param="mult" value="${mult}">×`,
           `<small class="bench">médiane du secteur ${ok(secMult) ? X(secMult) : "indisponible"}${own}</small>`)}
         ${kpi(`Valeur d'entreprise (M ${esc(c.cur)})`, M(ev))}
@@ -645,7 +673,7 @@ const Analyse = (() => {
       </div>`;
     return step("€", "Valorisation et reprise", "multiple et montage LBO", card("Prix par multiple et capacité de reprise", "", body,
       `Valeur d'entreprise = multiple × EBE ; on retranche la dette nette pour obtenir la valeur des titres. Multiples sectoriels :
-       sociétés américaines cotées (capitalisation déclarée à la SEC + dette nette) / EBE ; ils sont en général plus élevés que les multiples
+       sociétés cotées (capitalisation au dernier cours connu + dette nette) / EBE ; ils sont en général plus élevés que les multiples
        de transaction de PME françaises (souvent 4 à 7×). Le remboursement suppose un flux disponible constant, sans croissance ni
        dividende, après impôt au taux de ${P(f.tUsed)} : c'est un ordre de grandeur, pas un plan de financement. La dette est plafonnée à 75 % du prix.`));
   }

@@ -183,9 +183,10 @@ function compute(ignoreSector = false) {
     const key = "q" + i;
     if (!r.c[key]) {
       const p = Analyse.piotroski(r.c, i);
-      r.c[key] = { fs: p.known >= 8 ? Math.round(p.score * 9 / p.known) : null, z: Analyse.figures(r.c, i).zScore };
+      const fq = Analyse.figures(r.c, i);
+      r.c[key] = { fs: p.known >= 8 ? Math.round(p.score * 9 / p.known) : null, z: fq.zScore, per: fq.per, evx: fq.evEbitda };
     }
-    r.fs = r.c[key].fs; r.z = r.c[key].z;
+    r.fs = r.c[key].fs; r.z = r.c[key].z; r.per = r.c[key].per; r.evx = r.c[key].evx;
   }
   score(out);
   return out;
@@ -207,6 +208,8 @@ const COLS = [
   { key: "leverage", label: "DN/EBITDA", get: (r) => r.m.leverage, fmt: (r) => mult(r.m.leverage) },
   { key: "roce", label: "ROCE", get: (r) => r.m.roce, fmt: (r) => pct(r.m.roce, true) },
   { key: "bfrDays", label: "BFR", get: (r) => r.m.bfrDays, fmt: (r) => days(r.m.bfrDays) },
+  { key: "per", label: "PER", get: (r) => r.per, fmt: (r) => (ok(r.per) ? nf1.format(r.per) : '<span class="na">—</span>') },
+  { key: "evx", label: "VE/EBE", get: (r) => r.evx, fmt: (r) => (ok(r.evx) ? nf1.format(r.evx) + "×" : '<span class="na">—</span>') },
   { key: "fscore", label: "Piotroski", get: (r) => r.fs, fmt: (r) => (ok(r.fs) ? `${r.fs}/9` : '<span class="na">—</span>') },
   { key: "z", label: "Altman", get: (r) => r.z, fmt: (r) => (ok(r.z) ? `<span class="${r.z > 2.6 ? "pos" : r.z < 1.1 ? "neg" : ""}">${nf1.format(r.z)}</span>` : '<span class="na">—</span>') },
 ];

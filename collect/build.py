@@ -139,6 +139,7 @@ def keyword_sector(name, desc):
 
 def main():
     us = read_json("raw_us.json", {"companies": []})["companies"]
+    prices = read_json("prices.json", {})
     fr = read_json("raw_fr.json", {"companies": []})["companies"]
     fields = [k for k, _, _ in FIELDS]
 
@@ -182,6 +183,8 @@ def main():
             "s": sector, "sf": sector_from, "sd": c.get("sector_desc"), "sic": c.get("sic"),
             "cur": c["currency"], "src": c.get("source"), "est": sorted(est),
             "fy": {y: c.get("fy_end", {}).get(str(y)) for y in years[-1:]},
+            # Cours de clôture et nombre d'actions : capitalisation actuelle.
+            "px": (prices.get("us", {}) if c["country"] == "US" else prices.get("fr", {})).get(c["id"]),
             "v": values,
         })
 
@@ -191,6 +194,7 @@ def main():
         "fields": {k: {"kind": kind, "label": label} for k, kind, label in FIELDS},
         "sectors": SECTORS,
         "fx": {cur: {str(y): r for y, r in rates.items()} for cur, rates in FX.items()},
+        "price_date": {"US": prices.get("date_us"), "FR": prices.get("date_fr")},
         "counts": {"US": sum(1 for c in out if c["c"] == "US"), "FR": sum(1 for c in out if c["c"] == "FR")},
     }
     path = write_json("companies.json", {"meta": meta, "companies": out})

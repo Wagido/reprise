@@ -49,6 +49,7 @@ Python 3.9 ou plus, sans dépendance.
 ```bash
 python3 collect/sec.py      # USA (première fois : ~30 min, à cause des fiches secteur)
 python3 collect/esef.py     # France (~10 min)
+MASSIVE_API_KEY=... python3 collect/prices.py   # cours (facultatif)
 python3 collect/build.py    # fusion -> data/companies.json
 python3 collect/pme.py      # PME françaises -> data/pme.json (première fois : 1 à 2 h)
 python3 -m http.server 8000 # puis ouvrir http://localhost:8000
@@ -66,7 +67,10 @@ Les téléchargements sont gardés dans `cache/` : les relances suivantes sont r
    ainsi pour pouvoir prévenir leur auteur en cas de trop nombreuses requêtes. L'adresse
    n'est envoyée qu'à la SEC, dans l'en-tête des requêtes, et un secret n'apparaît ni dans le
    code ni dans les journaux. Sans ce secret, une identification générique est utilisée.
-3. Lancer le workflow **Collecte et publication** (onglet Actions). Il tourne ensuite chaque lundi.
+3. Cours de Bourse : créer les secrets `MASSIVE_API_KEY` (clé gratuite massive.com, ex-Polygon,
+   actions américaines) et `TWELVEDATA_API_KEY` (clé gratuite twelvedata.com, actions françaises).
+   Sans ces secrets, l'outil utilise la capitalisation déclarée à la SEC (USA seulement).
+4. Lancer le workflow **Collecte et publication** (onglet Actions). Il tourne ensuite chaque lundi.
 
 ## Limites connues
 
