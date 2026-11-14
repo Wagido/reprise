@@ -539,23 +539,6 @@ const Analyse = (() => {
     </div>`;
   }
 
-  // Résumé en langage courant, à partir des mêmes chiffres que les 4 étapes.
-  function summary(c, f, i, st) {
-    const sec = state.meta.sectors[c.s] || "";
-    const med = (k) => st[k] && st[k].median;
-    const cmp = (v, m, hib = true) => (!ok(v) || !ok(m) ? "" : (hib ? v >= m : v <= m) ? "mieux que la moyenne du secteur" : "moins bien que la moyenne du secteur");
-    const size = !ok(f.rev) ? "" : f.rev >= 10000 ? "un géant" : f.rev >= 1000 ? "une grande entreprise" : f.rev >= 100 ? "une entreprise moyenne" : "une petite entreprise";
-    const lines = [];
-    lines.push(`<b>${esc(c.n)}</b> est ${size} du secteur ${esc(sec.split(/[,(]/)[0].trim().toLowerCase())} : ${M(f.rev)} M ${esc(c.cur)} de chiffre d'affaires${ok(f.growth) ? `, ${f.growth >= 0.02 ? "en croissance" : f.growth <= -0.02 ? "en recul" : "stable"} (${P(f.growth)} par an sur 3 ans)` : ""}.`);
-    if (ok(f.ebitdaMargin)) lines.push(`Elle garde ${P(f.ebitdaMargin)} de son CA en EBE, ${cmp(f.ebitdaMargin, med("ebitdaMargin"))}${ok(f.roce) ? ` ; son capital rapporte ${P(f.roce)} par an après impôt, ce qui ${f.roce >= f.k ? "<b>crée de la valeur</b>" : "<b>ne couvre pas</b> son coût du capital"} (${P(f.k)} pour son secteur)` : ""}.`);
-    const solid = ok(f.netDebt) && f.netDebt <= 0 ? "Pas de dette nette : trésorerie disponible."
-      : ok(f.ndEbitda) ? `Sa dette nette représente ${X(f.ndEbitda)} son EBE : ${f.ndEbitda <= 2 ? "endettement léger" : f.ndEbitda <= 3.5 ? "endettement raisonnable" : "endettement lourd"}.` : "";
-    if (solid) lines.push(solid + (ok(f.zScore) ? ` Risque de défaillance ${f.zScore > 2.6 ? "faible" : f.zScore >= 1.1 ? "modéré" : "élevé"} (Altman ${nf1.format(f.zScore)}).` : ""));
-    if (ok(f.per) || ok(f.evEbitda)) lines.push(`En Bourse, elle vaut ${M(f.mcap)} M ${esc(c.cur)}${ok(f.per) ? `, soit ${nf0.format(f.per)} ans de bénéfices (PER)` : ""}${ok(f.evEbitda) && ok(med("evEbitda")) ? ` ; elle est ${f.evEbitda <= med("evEbitda") ? "moins chère" : "plus chère"} que son secteur (VE / EBE ${X(f.evEbitda)} contre ${X(med("evEbitda"))})` : ""}.`);
-    const fv = fairValue(c, f, i, st);
-    return `<div class="card resume"><h3>En 30 secondes <small>— exercice ${state.meta.years[i]}</small></h3>
-      ${lines.map((l) => `<p>${l}</p>`).join("")}${valueBar(c, f, fv)}</div>`;
-  }
   function seriesFor(c, fn) {
     const ys = state.meta.years;
     return ys.map((y, j) => ({ y, v: fn(figures(c, j)) }));
@@ -761,7 +744,7 @@ const Analyse = (() => {
       ${kpi("Rentabilité des capitaux propres", P(f.roe), bench(st, "roe", f.roe, P))}
       ${kpi("Intensité capitalistique", ok(f.intensity) ? nf1.format(f.intensity) : "—", `<small class="bench">actif économique / CA = 1 / rotation</small>`)}
     </div>`;
-    return step(4, "La rentabilité", "rentabilité économique, création de valeur, effet de levier, distribution", kpis + valueCreation(c, f, i, st, sg) + leverage(f) +
+    return step(4, "La rentabilité", "rentabilité économique, effet de levier, distribution", kpis + leverage(f) +
       history(c) + dividends(c, f, i, st));
   }
 
@@ -802,41 +785,69 @@ const Analyse = (() => {
         Marge de crédit indicative (1 % + 2,5 % par unité d'endettement).</p>`;
   }
 
-  // ---------- Étape 4 : création de valeur (conclusion du point de vue des actionnaires) ----------
-  function valueCreation(c, f, i, st, sg) {
+  // ---------- Partie 1, conclusion : création de valeur (actionnaire) et solvabilité (prêteur) ----------
+  function conclusion(c, f, i, st, V) {
     const cur = esc(c.cur);
-    const verdict = !ok(f.spread) ? "" : (() => {
-      const creates = f.spread >= 0;
-      if (!ok(f.vae)) return creates ? "La société <b>crée de la valeur</b> : sa rentabilité économique dépasse le coût du capital de son secteur."
-        : "La société <b>détruit de la valeur</b> : sa rentabilité économique ne couvre pas le coût du capital de son secteur.";
-      const rich = f.vae >= 1;
-      if (creates && !rich) return "Elle <b>crée de la valeur</b> mais le marché la valorise <b>moins que son actif économique</b> : décote à expliquer (risque, déclin attendu) ou opportunité.";
-      if (creates) return `Elle <b>crée de la valeur</b> et le marché le reconnaît : il la valorise ${X(f.vae)} son actif économique${ok(f.vaeTh) ? ` (≈ ${X(f.vaeTh)} sans croissance)` : ""}.`;
-      if (rich) return "Elle <b>détruit de la valeur</b> mais vaut <b>plus que son actif économique</b> : le marché anticipe un redressement ou une forte croissance, ou la paie cher.";
-      return "Elle <b>détruit de la valeur</b> et le marché la valorise sous son actif économique : cohérent.";
-    })();
-    const body = `<div class="kpis">
+    const sg = (v) => `<span class="${ok(v) ? (v >= 0 ? "pos" : "neg") : ""}">${ok(v) ? (v >= 0 ? "+" : "") + nf1.format(v * 100) + " pts" : "—"}</span>`;
+    const share = `<div class="kpis">
+        ${kpi("ROCE après IS", P(f.roce), bench(st, "roce", f.roce, P))}
         ${kpi("Coût du capital (CMPC)", P(f.k), `<small class="bench">${nf1.format(f.rates.rf)} % + bêta d'actif ${d2(f.betaA)} × ${nf1.format(f.rates.prm)} %</small>`)}
         ${kpi("ROCE − coût du capital", sg(f.spread))}
-        ${kpi(`Création de valeur ${state.meta.years[i]} (M ${cur})`, `<span class="${ok(f.eva) ? (f.eva >= 0 ? "pos" : "neg") : ""}">${M(f.eva)}</span>`, `<small class="bench">(ROCE − CMPC) × actif économique</small>`)}
-        ${kpi("VE / actif économique", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `théorique sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux investis"}</small>` + bench(st, "vae", f.vae, X, false))}
-        ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − actif économique</small>`)}
-        ${kpi("Coût des fonds propres", P(f.kE), `<small class="bench">bêta des actions ${nf1.format(f.betaE)} (réendetté)</small>`)}
+        ${kpi(`Valeur créée ${state.meta.years[i]} (M ${cur})`, `<span class="${ok(f.eva) ? (f.eva >= 0 ? "pos" : "neg") : ""}">${M(f.eva)}</span>`, `<small class="bench">(ROCE − CMPC) × actif économique</small>`)}
+        ${kpi("ROE", P(f.roe), bench(st, "roe", f.roe, P))}
+        ${kpi("Coût des fonds propres", P(f.kE), `<small class="bench">bêta des actions ${d2(f.betaE)} (réendetté)</small>`)}
         ${kpi("ROE − coût des fonds propres", sg(f.roeSpread))}
-        ${kpi("Capitalisation / capitaux propres (PBR)", X(f.pbr), `<small class="bench">${ok(f.roe) && f.kE > 0 ? `théorique sans croissance : ROE / coût des fonds propres = ${X(f.roe / f.kE)}` : ""}</small>`)}
       </div>
-      ${verdict ? `<p class="verdict-line">${verdict}</p>` : ""}
       ${costChart(f)}
       <p class="note">Taux sans risque <input class="param" type="number" step="0.1" min="0" max="20" data-param="rf" value="${params.rf ?? ""}" placeholder="${nf1.format(f.rates.rf)}"> %
         (${esc(f.rates.rfInfo)}) · prime de risque <input class="param" type="number" step="0.1" min="0" max="20" data-param="prm" value="${params.prm ?? ""}" placeholder="${nf1.format(f.rates.prm)}"> %
         (${esc(f.rates.prmInfo)}) · bêta d'actif du secteur ${d2(f.betaA)} (${esc(f.rates.betaInfo)}).
         ${f.rates.forced ? `<b>Valeurs forcées à la main.</b> <button class="chip" data-reset-rates="1">Revenir aux valeurs de référence</button>` : `Valeurs de référence mises à jour automatiquement${f.rates.updated ? ` (le ${new Date(f.rates.updated).toLocaleDateString("fr-FR")})` : ""} ; saisir un chiffre pour le forcer.`}</p>`;
-    return card("Création de valeur et prix de marché", "", body,
-      `Une entreprise crée de la valeur quand sa rentabilité économique après impôt (ROCE) dépasse le coût moyen pondéré du capital (CMPC) exigé par
-       actionnaires et prêteurs. Sa valeur d'entreprise devrait alors dépasser son actif économique : sans croissance, VE / actif économique ≈ ROCE / CMPC.
-       Côté actionnaire, même logique : capitalisation / capitaux propres ≈ ROE / coût des fonds propres. L'effet de levier augmente le ROE mais aussi
-       le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`);
+    const lend = `<div class="kpis">
+        ${kpi("Dette nette / EBE", ok(f.netDebt) && f.netDebt <= 0 ? "trésorerie nette" : X(f.ndEbitda), `<small class="bench">repère ≤ 3×</small>`)}
+        ${kpi("Couverture des frais financiers", X(f.coverage), `<small class="bench">résultat d'exploitation / frais financiers, repère ≥ 3×</small>`)}
+        ${kpi("Flux de trésorerie disponible", M(f.fcf), `<small class="bench">M ${cur}</small>`)}
+        ${kpi("Liquidité générale", X(f.liqGen), `<small class="bench">actif circulant / dettes à court terme</small>`)}
+        ${kpi("Altman Z''", ok(f.zScore) ? nf1.format(f.zScore) : "—", `<small class="bench">> 2,6 risque faible ; < 1,1 risque élevé</small>`)}
+      </div>`;
+    return step("✓", "Conclusion de l'analyse financière", "les réponses aux deux questions",
+      card("Du point de vue des actionnaires : l'entreprise crée-t-elle de la valeur ?", "", `<p class="verdict-line">${light(V.val[0])}${V.val[1]}</p>` + share,
+        `Une entreprise crée de la valeur quand sa rentabilité économique après impôt (ROCE) dépasse le coût moyen pondéré du capital (CMPC) exigé par
+         actionnaires et prêteurs. L'effet de levier augmente le ROE mais aussi le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`) +
+      card("Du point de vue des prêteurs : peut-elle rembourser ses dettes ?", "", `<p class="verdict-line">${light(V.solv[0])}${V.solv[1]}</p>` + lend,
+        "Solvabilité : la dette se rembourse par l'exploitation (dette nette / EBE, couverture des intérêts, flux disponible). Liquidité : les échéances des dettes face à la vitesse de transformation des actifs en trésorerie."));
   }
+
+  // ---------- Partie 2 : le marché paie-t-il déjà la valeur créée ? ----------
+  function marketVerdict(c, f, i, st) {
+    if (!ok(f.mcap)) return ["grey", "Pas de cours de Bourse disponible pour cette société : la question reste ouverte."];
+    const fv = fairValue(c, f, i, st);
+    const vals = [fv.sector, fv.dcf].filter(ok);
+    const gap = vals.length ? f.mcap / (vals.reduce((x, y) => x + y, 0) / vals.length) - 1 : null;
+    const th = ok(f.vaeTh) ? ` (sans croissance, sa rentabilité justifierait ${X(f.vaeTh)})` : "";
+    const obs = ok(f.vae) ? `Le marché la valorise ${X(f.vae)} son actif économique${th}` : "Le marché la valorise";
+    const g = ok(gap) ? ` ; cours ${gap <= 0 ? nf0.format(-gap * 100) + " % sous" : nf0.format(gap * 100) + " % au-dessus de"} la valeur estimée` : "";
+    if (!ok(f.spread)) return ["grey", obs + g + "."];
+    if (f.spread >= 0) {
+      if ((ok(f.vae) && ok(f.vaeTh) && f.vae < f.vaeTh * 0.8) || (ok(gap) && gap <= -0.2)) return ["green", `<b>Pas encore entièrement.</b> Elle crée de la valeur. ${obs}${g} : décote à expliquer (risque, déclin attendu) ou opportunité.`];
+      if (ok(f.vae) && ok(f.vaeTh) && f.vae > f.vaeTh * 1.5 || (ok(gap) && gap >= 0.2)) return ["red", `<b>Oui, et au-delà.</b> Elle crée de la valeur. ${obs}${g} : le prix intègre déjà une forte croissance.`];
+      return ["orange", `<b>Oui, à peu près.</b> Elle crée de la valeur. ${obs}${g}.`];
+    }
+    if (ok(f.vae) && f.vae > 1) return ["red", `<b>Le marché paie une valeur qu'elle ne crée pas aujourd'hui.</b> ${obs}${g} : il parie sur un redressement ou une forte croissance.`];
+    return ["orange", `<b>Non, et c'est cohérent :</b> elle détruit de la valeur. ${obs}${g}.`];
+  }
+  function marketCard(c, f, i, st, mv) {
+    const cur = esc(c.cur);
+    return card("Le prix de marché face à la valeur créée", "", `<p class="verdict-line">${light(mv[0])}${mv[1]}</p><div class="kpis">
+        ${kpi("VE / actif économique", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `justifié sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux investis"}</small>` + bench(st, "vae", f.vae, X, false))}
+        ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − actif économique</small>`)}
+        ${kpi("Capitalisation / capitaux propres (PBR)", X(f.pbr), `<small class="bench">${ok(f.roe) && f.kE > 0 ? `justifié sans croissance : ROE / coût des fonds propres = ${X(f.roe / f.kE)}` : ""}</small>`)}
+      </div>${valueBar(c, f, fairValue(c, f, i, st))}`,
+      `Si l'entreprise crée de la valeur, sa valeur d'entreprise doit dépasser son actif économique : sans croissance, VE / actif économique ≈ ROCE / CMPC,
+       et côté actionnaire capitalisation / capitaux propres ≈ ROE / coût des fonds propres. Un multiple observé bien supérieur signifie que le marché paie
+       déjà une croissance future ; bien inférieur, qu'il doute de la pérennité de la rentabilité, ou qu'il y a une opportunité.`);
+  }
+
 
   // ---------- Étape 4 (suite) : la politique de distribution ----------
   // Série longue du dividende par action (c.dh, préparée par collect/dividends.py) :
@@ -953,8 +964,9 @@ const Analyse = (() => {
 
   // ---------- Valorisation ----------
   function valuation(c, f, i, st) {
-    if (!ok(f.ebitda) || f.ebitda <= 0) return step("€", "Valorisation", "cours de Bourse et multiple du secteur",
-      `<div class="card"><p class="note">EBE négatif ou inconnu : pas de valorisation par multiple possible.</p></div>`);
+    const mv = marketVerdict(c, f, i, st);
+    if (!ok(f.ebitda) || f.ebitda <= 0) return step("€", "Le marché la paie-t-il déjà ?", "prix de marché face à la valeur créée",
+      marketCard(c, f, i, st, mv) + `<div class="card"><p class="note">EBE négatif ou inconnu : pas de valorisation par multiple possible.</p></div>`);
     const secMult = st.evEbitda && ok(st.evEbitda.median) && st.evEbitda.sorted.length >= 5 ? st.evEbitda.median : null;
     const mult = ok(params.mult) && params.mult > 0 ? params.mult : ok(secMult) ? Math.round(secMult * 10) / 10 : 7;
     const ev = mult * f.ebitda;
@@ -978,7 +990,7 @@ const Analyse = (() => {
         ${kpi("− dette nette", M(f.netDebt))}
         ${kpi(`= valeur des titres (M ${esc(c.cur)})`, M(equity))}
       </div>`;
-    return step("€", "Valorisation", "cours de Bourse et multiple du secteur", card("Valeur par multiple", "", body,
+    return step("€", "Le marché la paie-t-il déjà ?", "prix de marché face à la valeur créée, multiples", marketCard(c, f, i, st, mv) + card("Cours, multiples et valeur au multiple du secteur", "", body,
       `Valeur d'entreprise = multiple × EBE ; on retranche la dette nette pour obtenir la valeur des titres. Multiples sectoriels :
        médiane des sociétés cotées du secteur (capitalisation au dernier cours connu + dette nette) / EBE. Une valeur des titres
        supérieure à la capitalisation suggère une décote par rapport au secteur, à confirmer par l'analyse des 4 étapes.`));
@@ -1072,7 +1084,7 @@ const Analyse = (() => {
   }
 
   // ---------- Synthèse ----------
-  function synthesis(c, f, i, st) {
+  function verdicts(c, f, i, st) {
     const verdict = [];
     // 1. Marges
     const med = st.ebitdaMargin && st.ebitdaMargin.median;
@@ -1120,20 +1132,37 @@ const Analyse = (() => {
     const val = s4 === "green" ? ["green", "Crée de la valeur : rentabilité économique supérieure au coût du capital."]
       : s4 === "red" ? ["red", "Détruit de la valeur : rentabilité économique inférieure au coût du capital."]
         : s4 === "grey" ? ["grey", "Création de valeur non évaluable."] : ["orange", "Création de valeur à la limite."];
-    return `<div class="card synth"><h3>Synthèse ${state.meta.years[i]} <small>— plan d'analyse en 4 étapes</small></h3>
-      <div class="synth-grid">${verdict.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
-      <div class="synth-concl">
-        <div>${light(val[0])}<b>Du point de vue des actionnaires</b> <span>${val[1]} ${ok(f.roe) ? `Rentabilité des capitaux propres ${P(f.roe)}${ok(f.roce) && ok(f.roe) ? `, dont ${f.roe > f.roce ? "un effet de levier positif" : "un effet de levier négatif ou nul"}` : ""}.` : ""}</span></div>
-        <div>${light(solv[0])}<b>Du point de vue des prêteurs</b> <span>${solv[1]} ${ok(f.liqGen) ? `Liquidité générale ${nf1.format(f.liqGen)}.` : ""}</span></div>
-      </div>
+    const valTxt = `${val[1]}${ok(f.eva) ? ` ROCE après IS ${P(f.roce)} contre un coût du capital de ${P(f.k)} : ${M(f.eva)} M ${esc(c.cur)} de valeur ${f.eva >= 0 ? "créée" : "détruite"} sur l'exercice.` : ""}`;
+    const solvTxt = `${solv[1]}${cash ? "" : ok(f.ndEbitda) ? ` Dette nette / EBE ${X(f.ndEbitda)}, couverture des intérêts ${X(f.coverage)}.` : ""}${ok(f.liqGen) ? ` Liquidité générale ${nf1.format(f.liqGen)}.` : ""}${ok(f.zScore) ? ` Altman ${nf1.format(f.zScore)}.` : ""}`;
+    return { rows: verdict, val: [val[0], valTxt], solv: [solv[0], solvTxt] };
+  }
+
+  // Carte d'en-tête : les deux parties de l'analyse et leurs réponses.
+  function answers(c, f, i, st, V, mv) {
+    const sec = state.meta.sectors[c.s] || "";
+    const size = !ok(f.rev) ? "" : f.rev >= 10000 ? "un géant" : f.rev >= 1000 ? "une grande entreprise" : f.rev >= 100 ? "une entreprise moyenne" : "une petite entreprise";
+    const intro = `<b>${esc(c.n)}</b> est ${size} du secteur ${esc(sec.split(/[,(]/)[0].trim().toLowerCase())} : ${M(f.rev)} M ${esc(c.cur)} de chiffre d'affaires${ok(f.growth) ? `, ${f.growth >= 0.02 ? "en croissance" : f.growth <= -0.02 ? "en recul" : "stable"} (${P(f.growth)} par an sur 3 ans)` : ""}.`;
+    const q = (s, who, question, txt) => `<div class="q-row">${light(s)}<div><b>${who}</b> <i>${question}</i><span>${txt}</span></div></div>`;
+    return `<div class="card synth answers"><p class="intro">${intro} <small>Exercice ${state.meta.years[i]}.</small></p>
+      <h3><span class="part-n">1</span> L'analyse financière <small>— deux questions</small></h3>
+      ${q(V.val[0], "Actionnaire :", "l'entreprise crée-t-elle de la valeur ?", V.val[1])}
+      ${q(V.solv[0], "Prêteur :", "peut-elle rembourser ses dettes ?", V.solv[1])}
+      <div class="synth-grid">${V.rows.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
+      <h3><span class="part-n">2</span> Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></h3>
+      ${q(mv[0], "", "", mv[1])}
       <p class="note">Comparaison avec ${st.n} sociétés cotées du secteur « ${esc(state.meta.sectors[c.s])} », toutes zones. Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
-      <details class="method"><summary>Le plan d'analyse en 4 étapes</summary>${METHOD_HTML}</details></div>`;
+      <details class="method"><summary>Le plan d'analyse</summary>${METHOD_HTML}</details></div>`;
   }
 
   function render(c, i) {
     const f = figures(c, i);
     const st = sectorStats(c.s, i);
-    return summary(c, f, i, st) + synthesis(c, f, i, st) + qualityCard(c, f, i, st) + `<p class="note steps-hint">Le détail de l'analyse, étape par étape (cliquer pour ouvrir) :</p>` + step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + valuation(c, f, i, st);
+    const V = verdicts(c, f, i, st), mv = marketVerdict(c, f, i, st);
+    return answers(c, f, i, st, V, mv) +
+      `<h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— les 4 étapes, puis la conclusion (cliquer pour ouvrir)</small></h3>` +
+      step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + conclusion(c, f, i, st, V) + step("+", "Scores complémentaires", "radar sectoriel, Piotroski, Altman", qualityCard(c, f, i, st)) +
+      `<h3 class="part"><span class="part-n">2</span> Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></h3>` +
+      valuation(c, f, i, st);
   }
 
   // Texte de la méthode, affiché dans l'onglet Méthode et dans chaque fiche.
@@ -1159,11 +1188,12 @@ const Analyse = (() => {
         = ROE × (1 − taux de distribution)</b>, couverture du dividende par le flux disponible, rendement total
         (dividendes + rachats d'actions) et régularité du dividende par action (années de hausse consécutives).</li>
     </ol>
-    <p><b>Conclusion</b>, rédigée sous les deux angles : « <b>du point de vue des actionnaires</b> » (création de valeur, c'est-à-dire
-    ROCE comparé au <b>coût du capital</b> du secteur, CMPC = taux sans risque + bêta d'actif × prime de risque ; la valeur d'entreprise
-    devrait alors dépasser l'actif économique) et « <b>du point de vue des prêteurs</b> » (solvabilité et liquidité).
-    La valeur se déduit ensuite d'un <b>multiple de l'EBE ou du résultat d'exploitation</b>, moins la dette nette, ou de
-    l'actualisation des flux de trésorerie disponibles.</p>
+    <p><b>Conclusion</b>, rédigée sous les deux angles : « <b>du point de vue des actionnaires</b> » (création de valeur : ROCE après IS
+    comparé au <b>coût du capital</b>, CMPC = taux sans risque + bêta d'actif × prime de risque) et « <b>du point de vue des prêteurs</b> »
+    (solvabilité et liquidité).</p>
+    <p><b>Puis, pour une société cotée, une seconde question : si elle crée de la valeur, le marché la paie-t-il déjà ?</b>
+    Sa valeur d'entreprise devrait dépasser son actif économique (sans croissance, VE / actif économique ≈ ROCE / CMPC). On compare
+    le prix de marché à cette référence, aux multiples du secteur et à la valeur par actualisation des flux de trésorerie disponibles.</p>
     <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
     = résultat d'exploitation × (1 − IS) / actif économique ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
     <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents
