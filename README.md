@@ -80,13 +80,19 @@ Les téléchargements sont gardés dans `cache/` : les relances suivantes sont r
 - Dette nette hors dettes de location (IFRS 16 / ASC 842), affichées à part.
 - Les banques et assurances n'ont pas d'EBITDA ni de dette au sens industriel : leurs ratios
   n'ont pas de sens ici.
-- Pas encore de cours de Bourse, donc pas de multiples de valorisation (VE/EBITDA).
+- Capitalisation disponible pour les sociétés américaines seulement (« public float » déclaré à la
+  SEC, approximation de la capitalisation boursière).
 
 ## Suite possible
 
-- Cours et capitalisation, pour les multiples VE/EBITDA et VE/CA par secteur.
-- PME françaises non cotées (comptes INPI, annuaire des entreprises) : les vraies cibles.
-- Simulateur de reprise : prix, dette d'acquisition, remboursement sur le FCF.
+- Simulateur LBO complet : structure (dette senior, crédit-vendeur, apport), tableau de
+  remboursement année par année, TRI et multiple de sortie pour le repreneur.
+- Liste de cibles : PME en favoris, notes, comparaison côte à côte.
+- Multiples VE / EBE et VE / CA par secteur dans l'onglet Secteurs ; cours des sociétés françaises.
+- Alerte hebdomadaire des nouvelles PME correspondant à des critères enregistrés.
+
+Déjà fait : capitalisation des sociétés américaines (SEC) et multiple VE / EBE sectoriel,
+PME françaises non cotées avec carte, valorisation et montage LBO simple dans chaque fiche.
 
 ## Organisation
 
@@ -95,5 +101,9 @@ collect/concepts.py   correspondance champs <-> étiquettes US GAAP et IFRS
 collect/sec.py        collecte USA
 collect/esef.py       collecte France
 collect/build.py      fusion, secteurs, taux de change -> data/companies.json
-index.html, app.js, style.css, sw.js   application
+collect/pme.py        PME françaises -> data/pme.json
+collect/sectors_fr.py secteurs des sociétés cotées françaises (classés à la main)
+index.html, app.js    application (liste, secteurs, comparer)
+analyse.js            fiche société selon le plan en 4 étapes, valorisation, LBO
+pme.js                onglet PME : carte, classement, fiche PME
 ```
