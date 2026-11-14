@@ -626,7 +626,8 @@ function openDetail(c, yearIdx, tab) {
     const b = e.target.closest("button.chip");
     if (!b) return;
     const scroll = $("detail").querySelector(".detail-inner").scrollTop;
-    if (b.dataset.tab) openDetail(c, i, b.dataset.tab);
+    if (b.dataset.resetRates) { Analyse.setParam("rf", ""); Analyse.setParam("prm", ""); openDetail(c, i, tab); }
+    else if (b.dataset.tab) openDetail(c, i, b.dataset.tab);
     else openDetail(c, Number(b.dataset.y), tab);
     $("detail").querySelector(".detail-inner").scrollTop = scroll;
   };

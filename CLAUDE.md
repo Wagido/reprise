@@ -18,7 +18,8 @@ intéressé par la reprise d'entreprise et le stock picking.
   13 pays), `sec_intl.py` (groupes étrangers cotés à New York), `pme.py` (ratios BCE/INPI + annuaire),
   `prices.py` (cours : Massive pour les USA, Alpha Vantage en rotation pour Paris ; part du flottant),
   `build.py` (fusion, secteurs, devises → `data/companies.json`), `concepts.py` (étiquettes XBRL),
-  `sectors_fr.py` (secteurs français à la main), `dividends.py` (dividende par action sur longue période :
+  `sectors_fr.py` (secteurs français à la main), `rates.py` (coût du capital : taux à 10 ans BCE / FRED,
+  primes de risque pays et bêtas d'actif sectoriels de Damodaran → `data/rates.json` → `meta.rates`), `dividends.py` (dividende par action sur longue période :
   frames SEC depuis 2007, divisions d'actions repérées par le nombre d'actions, série des hausses consécutives).
 - Front : `index.html`, `app.js` (filtres, tableau, navigation), `analyse.js` (fiche 4 étapes, radar,
   Piotroski, Altman, distribution et dividendes en étape 4, valorisation), `tdb.js`, `picking.js`, `nuages.js`, `pme.js`, `lbo.js`, `style.css`.
@@ -32,4 +33,5 @@ intéressé par la reprise d'entreprise et le stock picking.
 - Données dans `data/` et cache dans `cache/` : non versionnés.
 
 ## Idées en attente
+- Retraitements Vernimmen (IFRS 16, non récurrent, retraites), effet ciseaux, flux cumulés, scénario de crise.
 - Japon (EDINET, clé à demander), comparables cotés par sous-secteur, liste de cibles PME.

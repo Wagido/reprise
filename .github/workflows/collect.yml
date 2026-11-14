@@ -51,6 +51,8 @@ jobs:
           MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.POLYGON_API_KEY }}
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
         run: python collect/prices.py
+      - name: Coût du capital (taux, primes de risque, bêtas)
+        run: python collect/rates.py || true
       - name: Fusion
         run: python collect/build.py
       - name: Site

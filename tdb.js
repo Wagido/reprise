@@ -25,7 +25,7 @@ const TDB = (() => {
     { n: 4, title: "La rentabilité", sub: "rotation × marge = ROCE",
       x: { k: "rotation", label: "Rotation de l'actif économique (log)", min: 0.1, max: 10, log: true, fmt: X },
       y: { k: "margin", label: "Marge d'exploitation après IS", min: -0.1, max: 0.4, fmt: P },
-      iso: true, note: "Courbes : ROCE égal au coût du capital, et à 20 %. Au-dessus de la première, la société crée de la valeur." },
+      iso: true, note: "Courbes : ROCE égal au coût du capital moyen du marché, et à 20 %. Au-dessus de la première, la société crée de la valeur." },
   ];
   const STATUS = { green: "bon", orange: "à surveiller", red: "alerte", grey: "non évaluable" };
   let onlyAll = false, hot = null, data = [];
@@ -63,7 +63,7 @@ const TDB = (() => {
       g += gd.axis === "x" ? `<line class="guide" x1="${sx(gd.v)}" x2="${sx(gd.v)}" y1="${T}" y2="${H - B}"/>${gd.label ? `<text class="gl" x="${sx(gd.v) + 3}" y="${T + 10}">${gd.label}</text>` : ""}`
         : `<line class="guide" x1="${L}" x2="${W - R}" y1="${sy(gd.v)}" y2="${sy(gd.v)}"/>${gd.label ? `<text class="gl" x="${W - R - 3}" y="${sy(gd.v) + (gd.above ? -4 : 11)}" text-anchor="end">${gd.label}</text>` : ""}`;
     }
-    if (p.iso) for (const r of [Analyse.params.wacc / 100, 0.2]) {
+    if (p.iso) for (const r of [Analyse.marketK(), 0.2]) {
       const pts = [];
       for (let k = 0; k <= 60; k++) {
         const x = Math.pow(10, -1 + k / 60 * 2), y = r / x;

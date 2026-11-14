@@ -6,6 +6,10 @@
 // Dépend de app.js : val(), ok(), esc(), nf0, nf1, state.
 
 const Analyse = (() => {
+  // Bêtas d'actif (désendettés) par secteur : ordres de grandeur des tables sectorielles publiées
+  // (Vernimmen, Damodaran), arrondis. CMPC = taux sans risque + bêta d'actif × prime de risque.
+  const BETA_A = { energie: 0.85, materiaux: 0.9, industrie: 0.9, conso_cyc: 1.0, conso_base: 0.65, sante: 0.85,
+    tech: 1.15, telecom: 0.6, utilities: 0.45, finance: 0.6, immo: 0.55, autre: 0.9 };
   // ---------- Agrégats ----------
   let figures = function (c, i) {
     const g = (f, j = i) => (j >= 0 ? val(c, f, j, true) : null);
@@ -146,6 +150,26 @@ const Analyse = (() => {
       f.divYield = ok(f.div) ? f.div / m : null;
       f.totalYield = ok(f.div) || ok(f.buyback) ? ((f.div || 0) + (f.buyback || 0)) / m : null;
     }
+    // Coût du capital du secteur (CMPC) : taux sans risque + bêta d'actif × prime de risque du marché.
+    const R = refRates(c);
+    const ba = R.beta, rf = R.rf / 100, prm = R.prm / 100;
+    f.betaA = ba;
+    f.rates = R;
+    f.k = rf + ba * prm;
+    f.spread = ok(f.roce) ? f.roce - f.k : null;
+    f.eva = ok(f.spread) && ok(f.ae) && f.ae > 0 ? f.spread * f.ae : null;
+    f.vaeTh = ok(f.roce) && f.k > 0 ? f.roce / f.k : null;           // VE / actif économique théorique, sans croissance
+    // Coût des fonds propres : bêta réendetté avec la dette nette / capitalisation (ou / capitaux propres comptables).
+    const de = ok(f.netDebt) ? Math.max(0, f.netDebt) / (ok(m) && m > 0 ? m : ok(f.eqGroup) && f.eqGroup > 0 ? f.eqGroup : NaN) : null;
+    f.de = ok(de) && Number.isFinite(de) ? de : null;
+    f.betaE = ok(de) ? Math.min(3, ba * (1 + (1 - (f.tUsed ?? 0.25)) * de)) : ba;
+    f.kE = rf + f.betaE * prm;
+    f.roeSpread = ok(f.roe) ? f.roe - f.kE : null;
+    if (ok(m) && m > 0) {
+      f.vae = ok(f.ev) && ok(f.ae) && f.ae > 0 ? f.ev / f.ae : null;
+      f.mva = ok(f.ev) && ok(f.ae) ? f.ev - f.ae : null;
+      f.pbr = ok(f.eqGroup) && f.eqGroup > 0 ? m / f.eqGroup : null;
+    }
     // Croissance soutenable (autofinancée) : ROE × (1 − taux de distribution).
     f.sustGrowth = ok(f.roe) && ok(f.payout) ? f.roe * (1 - f.payout) : ok(f.roe) && !ok(f.div) ? f.roe : null;
     return f;
@@ -154,6 +178,7 @@ const Analyse = (() => {
   const M = (v) => (ok(v) ? (Math.abs(v) >= 100 ? nf0.format(v) : nf1.format(v)) : "—");
   const P = (v) => (ok(v) ? nf1.format(v * 100) + " %" : "—");
   const X = (v) => (ok(v) ? nf1.format(v) + "×" : "—");
+  const d2 = (v) => (ok(v) ? v.toFixed(2).replace(".", ",") : "—");
 
   // ---------- Colonnes empilées proportionnelles ----------
   // side = [{label, value, cls}] ; les montants négatifs passent dans la colonne d'en face.
@@ -399,16 +424,43 @@ const Analyse = (() => {
     return `<div class="card"><h3>${title}</h3><p class="note">Non disponible : ${what} non publié sous une étiquette standard pour cet exercice.</p></div>`;
   }
 
+  // ---------- Coût du capital : valeurs de référence (collect/rates.py), sauf si l'utilisateur les force ----------
+  // Taux sans risque du pays (emprunt d'État à 10 ans), prime de risque du pays (Damodaran), bêta d'actif du secteur.
+  const MOIS = { January: "janvier", February: "février", March: "mars", April: "avril", May: "mai", June: "juin", July: "juillet",
+    August: "août", September: "septembre", October: "octobre", November: "novembre", December: "décembre" };
+  const frDate = (s) => String(s || "").replace(/([A-Z][a-z]+)(?: \d+,)? (\d{4})/, (m, mo, y) => `${MOIS[mo] || mo} ${y}`)
+    .replace(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/, (m, y, mo, d) => (d ? `${Number(d)}/${mo}/${y}` : `${Object.values(MOIS)[Number(mo) - 1]} ${y}`));
+  function refRates(c) {
+    const R = state.meta.rates || {};
+    const rfRef = R.rf && (R.rf[c.c] || R.rf.US);
+    const e = R.erp && R.erp.country && R.erp.country[c.c];
+    const erpRef = e && ok(e.erp) ? e.erp : R.erp && ok(R.erp.mature) ? R.erp.mature : null;
+    const betaRef = R.beta && R.beta.sector && R.beta.sector[c.s];
+    return {
+      rf: ok(params.rf) ? params.rf : rfRef ? rfRef.v : 4,
+      rfInfo: rfRef ? `emprunt d'État à 10 ans ${R.rf[c.c] ? `(${(state.meta.countries || {})[c.c] || c.c})` : "américain"}, ${frDate(rfRef.date)}` : "valeur par défaut",
+      prm: ok(params.prm) ? params.prm : ok(erpRef) ? erpRef : 5,
+      prmInfo: ok(erpRef) ? `Damodaran, ${frDate(R.erp.date)}` : "valeur par défaut",
+      beta: ok(betaRef) ? betaRef : BETA_A[c.s] ?? 0.9,
+      betaInfo: ok(betaRef) ? `Damodaran, ${R.beta.date ? frDate(R.beta.date) : "dernière table"}` : "ordre de grandeur",
+      forced: ok(params.rf) || ok(params.prm),
+      updated: R.updated,
+    };
+  }
+
   // ---------- Paramètres réglables (mémorisés dans le navigateur) ----------
-  const params = { wacc: 8.5, lev: 3.5, rate: 6, mult: null };
+  // rf = taux sans risque (%), prm = prime de risque (%) : vides = valeurs de référence mises à jour par la collecte.
+  const params = { rf: null, prm: null, mult: null };
   try { Object.assign(params, JSON.parse(localStorage.getItem("reprise.params") || "{}")); } catch (e) { /* ignoré */ }
+  delete params.wacc;
+  if (params.rf === 3 && params.prm === 6) { params.rf = null; params.prm = null; }   // anciennes valeurs par défaut
   function saveParams() { try { localStorage.setItem("reprise.params", JSON.stringify(params)); } catch (e) { /* ignoré */ } }
 
   // ---------- Comparaison au secteur ----------
   const sectorCache = {};
   const BENCH = ["per", "evSales", "fcfYield", "growth", "ebitdaMargin", "margin", "netMargin", "bfrDays", "capexRev", "rotation", "ndEbitda",
     "coverage", "roce", "roe", "evEbitda", "zScore", "divYield", "bookYield", "liqGen", "growth1",
-    "payout", "totalYield", "divCover", "sustGrowth"];
+    "payout", "totalYield", "divCover", "sustGrowth", "vae", "spread", "pbr"];
   function sectorStats(sector, i) {
     const key = sector + "|" + i;
     if (sectorCache[key]) return sectorCache[key];
@@ -457,7 +509,7 @@ const Analyse = (() => {
     const sector = ok(medEv) && ok(f.ebitda) && f.ebitda > 0 && ok(f.netDebt) ? medEv * f.ebitda - f.netDebt : null;
     const fcfs = [0, 1, 2].map((k) => figures(c, i - k).fcf).filter(ok);
     const fcf = fcfs.length ? fcfs.reduce((a, b) => a + b, 0) / fcfs.length : null;
-    const w = params.wacc / 100, g = 0.03, gT = Math.min(0.02, w - 0.01);
+    const w = f.k, g = 0.03, gT = Math.min(0.02, w - 0.01);
     let dcf = null;
     if (ok(fcf) && fcf > 0 && ok(f.netDebt) && w > gT) {
       let v = 0, cf = fcf;
@@ -495,7 +547,7 @@ const Analyse = (() => {
     const size = !ok(f.rev) ? "" : f.rev >= 10000 ? "un géant" : f.rev >= 1000 ? "une grande entreprise" : f.rev >= 100 ? "une entreprise moyenne" : "une petite entreprise";
     const lines = [];
     lines.push(`<b>${esc(c.n)}</b> est ${size} du secteur ${esc(sec.split(/[,(]/)[0].trim().toLowerCase())} : ${M(f.rev)} M ${esc(c.cur)} de chiffre d'affaires${ok(f.growth) ? `, ${f.growth >= 0.02 ? "en croissance" : f.growth <= -0.02 ? "en recul" : "stable"} (${P(f.growth)} par an sur 3 ans)` : ""}.`);
-    if (ok(f.ebitdaMargin)) lines.push(`Elle garde ${P(f.ebitdaMargin)} de son CA en EBE, ${cmp(f.ebitdaMargin, med("ebitdaMargin"))}${ok(f.roce) ? ` ; son capital rapporte ${P(f.roce)} par an après impôt, ce qui ${f.roce >= params.wacc / 100 ? "<b>crée de la valeur</b>" : "<b>ne couvre pas</b> le coût du capital"}` : ""}.`);
+    if (ok(f.ebitdaMargin)) lines.push(`Elle garde ${P(f.ebitdaMargin)} de son CA en EBE, ${cmp(f.ebitdaMargin, med("ebitdaMargin"))}${ok(f.roce) ? ` ; son capital rapporte ${P(f.roce)} par an après impôt, ce qui ${f.roce >= f.k ? "<b>crée de la valeur</b>" : "<b>ne couvre pas</b> son coût du capital"} (${P(f.k)} pour son secteur)` : ""}.`);
     const solid = ok(f.netDebt) && f.netDebt <= 0 ? "Pas de dette nette : trésorerie disponible."
       : ok(f.ndEbitda) ? `Sa dette nette représente ${X(f.ndEbitda)} son EBE : ${f.ndEbitda <= 2 ? "endettement léger" : f.ndEbitda <= 3.5 ? "endettement raisonnable" : "endettement lourd"}.` : "";
     if (solid) lines.push(solid + (ok(f.zScore) ? ` Risque de défaillance ${f.zScore > 2.6 ? "faible" : f.zScore >= 1.1 ? "modéré" : "élevé"} (Altman ${nf1.format(f.zScore)}).` : ""));
@@ -703,20 +755,87 @@ const Analyse = (() => {
 
   // ---------- Étape 4 : la rentabilité ----------
   function step4(c, f, i, st) {
-    const w = params.wacc / 100;
-    const spread = ok(f.roce) ? f.roce - w : null;
-    const eva = ok(spread) && ok(f.ae) ? spread * f.ae : null;
+    const sg = (v, u = " pts") => `<span class="${ok(v) ? (v >= 0 ? "pos" : "neg") : ""}">${ok(v) ? (v >= 0 ? "+" : "") + nf1.format(v * 100) + u : "—"}</span>`;
     const kpis = `<div class="kpis">
       ${kpi("ROCE après IS", P(f.roce), bench(st, "roce", f.roce, P))}
       ${kpi("Rentabilité des capitaux propres", P(f.roe), bench(st, "roe", f.roe, P))}
       ${kpi("Intensité capitalistique", ok(f.intensity) ? nf1.format(f.intensity) : "—", `<small class="bench">actif économique / CA = 1 / rotation</small>`)}
-      ${kpi("Coût du capital (hypothèse)", `<input class="param" type="number" step="0.5" min="0" max="30" data-param="wacc" value="${params.wacc}"> %`)}
-      ${kpi("ROCE − coût du capital", `<span class="${ok(spread) ? (spread >= 0 ? "pos" : "neg") : ""}">${ok(spread) ? (spread >= 0 ? "+" : "") + nf1.format(spread * 100) + " pts" : "—"}</span>`)}
-      ${kpi(`Création de valeur ${state.meta.years[i]} (M ${esc(c.cur)})`, `<span class="${ok(eva) ? (eva >= 0 ? "pos" : "neg") : ""}">${M(eva)}</span>`)}
     </div>`;
-    return step(4, "La rentabilité", "rentabilité économique, capitaux propres, effet de levier, distribution", kpis + leverage(f) +
-      `<p class="note">Création de valeur (profit économique) = (ROCE après IS − coût du capital) × actif économique. L'effet de levier augmente la rentabilité des capitaux propres mais aussi leur risque : il ne crée pas de valeur. Seule une rentabilité économique durablement supérieure au coût du capital en crée.</p>` +
+    return step(4, "La rentabilité", "rentabilité économique, création de valeur, effet de levier, distribution", kpis + valueCreation(c, f, i, st, sg) + leverage(f) +
       history(c) + dividends(c, f, i, st));
+  }
+
+  // ---------- Coût du capital selon l'endettement (graphique du Vernimmen) ----------
+  // k_CP = rf + bêta d'actif × (1 + (1 − IS) × D/CP) × prime ; k_D = rf + marge de crédit croissante avec la dette ;
+  // CMPC = (k_CP × CP + k_D × (1 − IS) × D) / (CP + D). Le levier fait monter le coût des fonds propres mais pas le CMPC.
+  function costChart(f) {
+    const rf = f.rates.rf / 100, prm = f.rates.prm / 100, t = f.tUsed ?? 0.25, ba = f.betaA;
+    const cur = ok(f.de) ? f.de : null;
+    const xMax = Math.max(1.5, Math.min(4, ok(cur) ? cur * 1.4 : 0));
+    const kE = (d) => rf + ba * (1 + (1 - t) * d) * prm;
+    const kD = (d) => rf + 0.01 + 0.025 * d;               // marge de crédit indicative : 1 % + 2,5 % par unité de D/CP
+    const kDat = (d) => kD(d) * (1 - t);
+    const wacc = (d) => (kE(d) + kDat(d) * d) / (1 + d);
+    const W = 460, H = 230, L = 40, R = 92, T = 10, B = 30;
+    const roceIn = ok(f.roce) && f.roce <= Math.max(0.3, kE(xMax) * 1.6);
+    const yMax = Math.max(0.12, Math.max(kE(xMax), roceIn ? f.roce : 0) * 1.15), yMin = 0;
+    const sx = (v) => L + v / xMax * (W - L - R), sy = (v) => T + (yMax - Math.max(yMin, Math.min(yMax, v))) / (yMax - yMin) * (H - T - B);
+    const line = (fn) => Array.from({ length: 41 }, (_, k) => k / 40 * xMax).map((d) => `${sx(d).toFixed(1)},${sy(fn(d)).toFixed(1)}`).join(" ");
+    let g = "";
+    const ys = []; for (let v = 0; v <= yMax + 1e-9; v += yMax > 0.2 ? 0.05 : 0.02) ys.push(v);
+    for (const v of ys) g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}"/><text class="ax" x="${L - 4}" y="${sy(v) + 3}" text-anchor="end">${nf0.format(v * 100)} %</text>`;
+    for (let d = 0; d <= xMax + 1e-9; d += xMax > 2 ? 1 : 0.5) g += `<text class="ax" x="${sx(d)}" y="${H - B + 13}" text-anchor="middle">${nf1.format(d)}</text>`;
+    g += `<text class="ax" x="${(L + W - R) / 2}" y="${H - 3}" text-anchor="middle">Dette nette / capitaux propres</text>`;
+    const lab = (fn, txt, cls) => `<text class="cl ${cls}" x="${W - R + 4}" y="${sy(fn(xMax)) + 4}">${txt}</text>`;
+    g += `<polyline class="c-ke" points="${line(kE)}"/>${lab(kE, "fonds propres", "c-ke")}`;
+    g += `<polyline class="c-w" points="${line(wacc)}"/>${lab(wacc, "CMPC", "c-w")}`;
+    g += `<polyline class="c-kd" points="${line(kDat)}"/>${lab(kDat, "dette après IS", "c-kd")}`;
+    if (ok(f.roce)) g += roceIn ? `<line class="c-roce" x1="${L}" x2="${W - R}" y1="${sy(f.roce)}" y2="${sy(f.roce)}"/><text class="cl" x="${L + 4}" y="${sy(f.roce) - 4}">ROCE après IS ${P(f.roce)}</text>`
+      : `<text class="cl" x="${L + 4}" y="${T + 10}">↑ ROCE après IS ${P(f.roce)}, hors cadre</text>`;
+    if (ok(cur) && cur <= xMax) g += `<line class="guide" x1="${sx(cur)}" x2="${sx(cur)}" y1="${T}" y2="${H - B}"/><circle class="c-dot" cx="${sx(cur)}" cy="${sy(wacc(cur))}" r="4.5"/>
+      <circle class="c-dot ke" cx="${sx(cur)}" cy="${sy(kE(cur))}" r="4.5"/><text class="cl" x="${sx(cur) + 5}" y="${T + 24}">la société</text>`;
+    return `<h4 class="sub">Coût du capital selon l'endettement</h4>
+      <svg class="cost-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Coût des fonds propres, coût de la dette et coût moyen pondéré du capital en fonction de l'endettement">${g}</svg>
+      <p class="note">Plus la dette est lourde, plus les actionnaires exigent une rentabilité élevée (le risque de leurs titres augmente) :
+        la dette, moins chère, est compensée par des fonds propres plus chers et le CMPC reste presque plat — il ne baisse que de l'économie d'impôt sur les intérêts,
+        avant de remonter quand le risque de défaut renchérit la dette. L'endettement ne crée donc pas de valeur par lui-même : seul compte l'écart entre ROCE et CMPC.
+        Marge de crédit indicative (1 % + 2,5 % par unité d'endettement).</p>`;
+  }
+
+  // ---------- Étape 4 : création de valeur (conclusion du point de vue des actionnaires) ----------
+  function valueCreation(c, f, i, st, sg) {
+    const cur = esc(c.cur);
+    const verdict = !ok(f.spread) ? "" : (() => {
+      const creates = f.spread >= 0;
+      if (!ok(f.vae)) return creates ? "La société <b>crée de la valeur</b> : sa rentabilité économique dépasse le coût du capital de son secteur."
+        : "La société <b>détruit de la valeur</b> : sa rentabilité économique ne couvre pas le coût du capital de son secteur.";
+      const rich = f.vae >= 1;
+      if (creates && !rich) return "Elle <b>crée de la valeur</b> mais le marché la valorise <b>moins que son actif économique</b> : décote à expliquer (risque, déclin attendu) ou opportunité.";
+      if (creates) return `Elle <b>crée de la valeur</b> et le marché le reconnaît : il la valorise ${X(f.vae)} son actif économique${ok(f.vaeTh) ? ` (≈ ${X(f.vaeTh)} sans croissance)` : ""}.`;
+      if (rich) return "Elle <b>détruit de la valeur</b> mais vaut <b>plus que son actif économique</b> : le marché anticipe un redressement ou une forte croissance, ou la paie cher.";
+      return "Elle <b>détruit de la valeur</b> et le marché la valorise sous son actif économique : cohérent.";
+    })();
+    const body = `<div class="kpis">
+        ${kpi("Coût du capital (CMPC)", P(f.k), `<small class="bench">${nf1.format(f.rates.rf)} % + bêta d'actif ${d2(f.betaA)} × ${nf1.format(f.rates.prm)} %</small>`)}
+        ${kpi("ROCE − coût du capital", sg(f.spread))}
+        ${kpi(`Création de valeur ${state.meta.years[i]} (M ${cur})`, `<span class="${ok(f.eva) ? (f.eva >= 0 ? "pos" : "neg") : ""}">${M(f.eva)}</span>`, `<small class="bench">(ROCE − CMPC) × actif économique</small>`)}
+        ${kpi("VE / actif économique", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `théorique sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux investis"}</small>` + bench(st, "vae", f.vae, X, false))}
+        ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − actif économique</small>`)}
+        ${kpi("Coût des fonds propres", P(f.kE), `<small class="bench">bêta des actions ${nf1.format(f.betaE)} (réendetté)</small>`)}
+        ${kpi("ROE − coût des fonds propres", sg(f.roeSpread))}
+        ${kpi("Capitalisation / capitaux propres (PBR)", X(f.pbr), `<small class="bench">${ok(f.roe) && f.kE > 0 ? `théorique sans croissance : ROE / coût des fonds propres = ${X(f.roe / f.kE)}` : ""}</small>`)}
+      </div>
+      ${verdict ? `<p class="verdict-line">${verdict}</p>` : ""}
+      ${costChart(f)}
+      <p class="note">Taux sans risque <input class="param" type="number" step="0.1" min="0" max="20" data-param="rf" value="${params.rf ?? ""}" placeholder="${nf1.format(f.rates.rf)}"> %
+        (${esc(f.rates.rfInfo)}) · prime de risque <input class="param" type="number" step="0.1" min="0" max="20" data-param="prm" value="${params.prm ?? ""}" placeholder="${nf1.format(f.rates.prm)}"> %
+        (${esc(f.rates.prmInfo)}) · bêta d'actif du secteur ${d2(f.betaA)} (${esc(f.rates.betaInfo)}).
+        ${f.rates.forced ? `<b>Valeurs forcées à la main.</b> <button class="chip" data-reset-rates="1">Revenir aux valeurs de référence</button>` : `Valeurs de référence mises à jour automatiquement${f.rates.updated ? ` (le ${new Date(f.rates.updated).toLocaleDateString("fr-FR")})` : ""} ; saisir un chiffre pour le forcer.`}</p>`;
+    return card("Création de valeur et prix de marché", "", body,
+      `Une entreprise crée de la valeur quand sa rentabilité économique après impôt (ROCE) dépasse le coût moyen pondéré du capital (CMPC) exigé par
+       actionnaires et prêteurs. Sa valeur d'entreprise devrait alors dépasser son actif économique : sans croissance, VE / actif économique ≈ ROCE / CMPC.
+       Côté actionnaire, même logique : capitalisation / capitaux propres ≈ ROE / coût des fonds propres. L'effet de levier augmente le ROE mais aussi
+       le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`);
   }
 
   // ---------- Étape 4 (suite) : la politique de distribution ----------
@@ -987,11 +1106,11 @@ const Analyse = (() => {
     }
     verdict.push([3, "Financement", s3, t3]);
     // 4. Rentabilité
-    const w = params.wacc / 100;
+    const w = f.k;
     let s4 = "grey", t4 = "Rentabilité non calculable.";
     if (ok(f.roce)) {
       s4 = f.roce >= w + 0.02 ? "green" : f.roce >= w - 0.01 ? "orange" : "red";
-      t4 = `ROCE après IS ${P(f.roce)} pour un coût du capital supposé de ${P(w)} ; ROE ${P(f.roe)}.`;
+      t4 = `ROCE après IS ${P(f.roce)} pour un coût du capital du secteur de ${P(w)} ; ROE ${P(f.roe)}.`;
     }
     verdict.push([4, "Rentabilité", s4, t4]);
     // Conclusion
@@ -1041,7 +1160,8 @@ const Analyse = (() => {
         (dividendes + rachats d'actions) et régularité du dividende par action (années de hausse consécutives).</li>
     </ol>
     <p><b>Conclusion</b>, rédigée sous les deux angles : « <b>du point de vue des actionnaires</b> » (création de valeur, c'est-à-dire
-    ROCE comparé au <b>coût du capital</b>) et « <b>du point de vue des prêteurs</b> » (solvabilité et liquidité).
+    ROCE comparé au <b>coût du capital</b> du secteur, CMPC = taux sans risque + bêta d'actif × prime de risque ; la valeur d'entreprise
+    devrait alors dépasser l'actif économique) et « <b>du point de vue des prêteurs</b> » (solvabilité et liquidité).
     La valeur se déduit ensuite d'un <b>multiple de l'EBE ou du résultat d'exploitation</b>, moins la dette nette, ou de
     l'actualisation des flux de trésorerie disponibles.</p>
     <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
@@ -1050,8 +1170,9 @@ const Analyse = (() => {
     du secteur) et <b>par rapport à des normes</b> (les repères ci-dessus).</p>`;
 
   function setParam(name, value) {
-    const v = Number(String(value).replace(",", "."));
-    params[name] = Number.isFinite(v) && v > 0 ? v : (name === "mult" ? null : params[name]);
+    const s = String(value ?? "").trim();
+    const v = Number(s.replace(",", "."));
+    params[name] = s === "" ? null : Number.isFinite(v) && v >= 0 ? v : params[name];
     saveParams();
   }
   // Verdicts des 4 étapes (mêmes règles que la synthèse de la fiche), pour le tableau de bord.
@@ -1075,7 +1196,7 @@ const Analyse = (() => {
     let s3 = "grey";
     if (ok(f.netDebt) && f.netDebt <= 0) s3 = "green";
     else if (ok(f.ndEbitda)) s3 = f.ndEbitda <= 3 && (!ok(f.coverage) || f.coverage >= 3) ? "green" : f.ndEbitda > 4 || (ok(f.coverage) && f.coverage < 1.5) ? "red" : "orange";
-    const w = params.wacc / 100;
+    const w = f.k;
     const s4 = !ok(f.roce) ? "grey" : f.roce >= w + 0.02 ? "green" : f.roce >= w - 0.01 ? "orange" : "red";
     return { f, s: [s1, s2, s3, s4] };
   }
@@ -1085,5 +1206,12 @@ const Analyse = (() => {
     return Object.fromEntries(BENCH.map((k) => [k, st[k] ? st[k].median : null]));
   }
 
-  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, methodHtml: METHOD_HTML, params, setParam };
+  // Coût du capital moyen du marché (bêta d'actif 1), pour les repères des graphiques.
+  const marketK = () => {
+    const R = state.meta.rates || {};
+    const rf = ok(params.rf) ? params.rf : R.rf && R.rf.US ? R.rf.US.v : 4;
+    const prm = ok(params.prm) ? params.prm : R.erp && ok(R.erp.mature) ? R.erp.mature : 5;
+    return (rf + prm) / 100;
+  };
+  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, methodHtml: METHOD_HTML, params, setParam, marketK };
 })();

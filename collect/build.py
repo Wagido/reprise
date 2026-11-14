@@ -259,6 +259,8 @@ def main():
         "countries": COUNTRY_NAMES, "zones": ZONE_NAMES,
         "zone_counts": {z: sum(1 for c in out if c["z"] == z) for z in ZONE_NAMES},
         "counts": {"US": sum(1 for c in out if c["c"] == "US"), "FR": sum(1 for c in out if c["c"] == "FR")},
+        # Coût du capital : taux sans risque, primes de risque et bêtas de référence (collect/rates.py).
+        "rates": read_json("rates.json", None),
     }
     path = write_json("companies.json", {"meta": meta, "companies": out})
     print(f"{path} : {len(out)} sociétés, années {years[0]}–{years[-1]}")
