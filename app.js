@@ -362,11 +362,21 @@ function renderSectors() {
       m += `<circle class="sb${focus && p.k !== focus ? " dim" : ""}" data-sector="${p.k}" cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${rr.toFixed(1)}"><title>${esc(state.meta.sectors[p.k])} (${p.n} sociétés)\n${esc(ch.x.l)} : ${ch.x.fmt(p.x)}\n${esc(ch.y.l)} : ${ch.y.fmt(p.y)}</title></circle>`;
     }
     const placed = [];
+    // Nom à droite de la bulle, sinon à gauche, au-dessus ou en dessous : la première position libre.
+    const bubbles = sorted.map((p) => [sx(p.x), sy(p.y), 4 + 14 * Math.sqrt(p.n / maxN)]);
     for (const p of sorted) {
-      const nm = short(p.k), x = sx(p.x) + 4 + 14 * Math.sqrt(p.n / maxN) + 2, y = sy(p.y) + 4;
-      const box = [x, y - 10, x + nm.length * 5.8, y + 2];
-      if (box[2] > W - R || placed.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
-      placed.push(box); m += `<text class="lbl" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${esc(nm)}</text>`;
+      const nm = short(p.k), w = nm.length * 6.2, cx = sx(p.x), cy = sy(p.y), rr = 4 + 14 * Math.sqrt(p.n / maxN);
+      const tries = [[cx + rr + 4, cy + 4, "start"], [cx - rr - 4, cy + 4, "end"], [cx, cy - rr - 5, "middle"], [cx, cy + rr + 13, "middle"]];
+      for (const [x, y, an] of tries) {
+        const x0 = an === "start" ? x : an === "end" ? x - w : x - w / 2, box = [x0, y - 11, x0 + w, y + 3];
+        if (box[0] < L || box[2] > W - R + 8 || box[1] < 0 || box[3] > H - B + 4) continue;
+        if (placed.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
+        // Ne pas écrire sur une autre bulle.
+        if (bubbles.some(([bx, by, br]) => !(bx === cx && by === cy) && bx + br > box[0] && bx - br < box[2] && by + br > box[1] && by - br < box[3])) continue;
+        placed.push(box);
+        m += `<text class="lbl" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}">${esc(nm)}</text>`;
+        break;
+      }
     }
     return `<div class="card schart"><h3>${esc(ch.t)}</h3><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ch.t)}">${g}${m}</svg><p class="note">${esc(ch.note)}</p></div>`;
   }).join("") + `<p class="note" style="grid-column:1/-1">Une bulle = un secteur (5 sociétés au moins), placée à la médiane ; taille = nombre de sociétés. Survoler pour le détail, cliquer pour filtrer le tableau sur ce secteur.</p>`;

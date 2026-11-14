@@ -6,13 +6,19 @@
 <title>Reprise — analyse financière méthode Vernimmen</title>
 <meta name="description" content="Analyse financière en 4 étapes (marges, investissements, financement, rentabilité) des sociétés cotées et des PME françaises, à partir de leurs comptes publiés.">
 <meta name="theme-color" content="#1d4e5f">
+<meta name="color-scheme" content="light dark">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="lib/leaflet.css?v=dev">
 <link rel="stylesheet" href="style.css?v=dev">
 <script>
   // Thème : clair par défaut, sombre si choisi (mémorisé dans le navigateur).
-  try { document.documentElement.dataset.theme = localStorage.getItem("reprise.theme") || "light"; } catch (e) { document.documentElement.dataset.theme = "light"; }
+  // Thème choisi par l'utilisateur, sinon celui du système (le navigateur n'a alors pas à forcer un mode sombre).
+  (function () {
+    var sys = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light", t = null;
+    try { t = localStorage.getItem("reprise.theme"); } catch (e) { /* ignoré */ }
+    document.documentElement.dataset.theme = t || sys;
+  })();
 </script>
 </head>
 <body>

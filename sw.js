@@ -1,6 +1,6 @@
 // Hors ligne : l'interface est servie depuis le cache, les données sont
 // rechargées depuis le réseau quand il est là (sinon, dernière copie).
-const CACHE = "reprise-v21";
+const CACHE = "reprise-v22";
 const SHELL = ["./", "index.html", "style.css", "app.js", "analyse.js", "pme.js", "lbo.js", "picking.js", "nuages.js", "tdb.js", "banc.js", "lib/leaflet.js", "lib/leaflet.css", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
