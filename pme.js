@@ -372,6 +372,45 @@ const PME = (() => {
     return { m: Math.round(ARGOS.m * sf * zf * 10) / 10, med, allMed, sf, zf, label: state.meta.sectors[ls] || ls };
   }
 
+
+  // Graphe de modélisation du multiple : à gauche sa construction (Argos Index → secteur → taille →
+  // référence, puis multiple retenu) ; à droite la valeur des titres selon le multiple.
+  function multChart(ref, mult, ebeR, dettes, treso) {
+    if (!ok(ebeR) || ebeR <= 0) return "";
+    const W = 680, H = 230, top = 26, bot = 34, n1 = (v) => nf1.format(v) + "×";
+    // Volet gauche : cascade.
+    const steps = ref ? [
+      ["Argos Index", 0, ARGOS.m, "base"], ["Secteur", ARGOS.m, ARGOS.m * ref.sf, "delta"],
+      ["Taille", ARGOS.m * ref.sf, ref.m, "delta"], ["Référence", 0, ref.m, "base"], ["Retenu", 0, mult, "user"]]
+      : [["Retenu", 0, mult, "user"]];
+    const lw = 300, mMax = Math.max(10, ARGOS.m, mult) * 1.08;
+    const yA = (v) => top + (1 - v / mMax) * (H - top - bot), bw = lw / steps.length;
+    let a = "";
+    steps.forEach(([lab, v0, v1, kind], k) => {
+      const x = 8 + k * bw + bw * 0.18, w = bw * 0.64, y0 = yA(Math.max(v0, v1)), h = Math.max(1.5, Math.abs(yA(v0) - yA(v1)));
+      const fill = kind === "user" ? "#eb6834" : kind === "base" ? "#2a78d6" : v1 >= v0 ? "#7fb0ec" : "#b9c3cf";
+      a += `<rect x="${x}" y="${y0}" width="${w}" height="${h}" rx="2" fill="${fill}"><title>${lab} : ${kind === "delta" ? (v1 >= v0 ? "+" : "−") + nf1.format(Math.abs(v1 - v0)) + "×" : n1(v1)}</title></rect>`;
+      a += `<text x="${x + w / 2}" y="${y0 - 5}" text-anchor="middle" class="cv">${kind === "delta" ? (v1 >= v0 ? "+" : "−") + nf1.format(Math.abs(v1 - v0)) : n1(v1)}</text>`;
+      a += `<text x="${x + w / 2}" y="${H - bot + 16}" text-anchor="middle">${lab}</text>`;
+      if (kind === "delta") a += `<text x="${x + w / 2}" y="${H - bot + 29}" text-anchor="middle" class="cm">× ${nf1.format(lab === "Secteur" ? ref.sf : ref.zf)}</text>`;
+    });
+    a += `<line x1="4" x2="${lw + 8}" y1="${yA(0)}" y2="${yA(0)}" stroke="var(--line)"/>`;
+    // Volet droit : valeur des titres selon le multiple.
+    const x0 = 380, x1 = W - 12, mLo = 3, mHi = 12, val = (m) => m * ebeR - dettes + (ok(treso) ? treso : 0);
+    const vMin = Math.min(0, val(mLo)), vMax = val(mHi) * 1.05;
+    const xB = (m) => x0 + (m - mLo) / (mHi - mLo) * (x1 - x0), yB = (v) => top + (1 - (v - vMin) / (vMax - vMin || 1)) * (H - top - bot);
+    let b = `<line x1="${x0}" x2="${x1}" y1="${yB(Math.max(0, vMin))}" y2="${yB(Math.max(0, vMin))}" stroke="var(--line)"/>`;
+    for (let m = mLo; m <= mHi; m += 1) b += `<line x1="${xB(m)}" x2="${xB(m)}" y1="${top}" y2="${H - bot}" stroke="var(--line)" stroke-opacity=".45"/><text x="${xB(m)}" y="${H - bot + 16}" text-anchor="middle">${m}×</text>`;
+    b += `<line x1="${xB(mLo)}" y1="${yB(val(mLo))}" x2="${xB(mHi)}" y2="${yB(val(mHi))}" stroke="#2a78d6" stroke-width="2.5"/>`;
+    const mark = (m, col, lab, dy) => m >= mLo && m <= mHi ? `<line x1="${xB(m)}" x2="${xB(m)}" y1="${top}" y2="${H - bot}" stroke="${col}" stroke-dasharray="4 3"/><circle cx="${xB(m)}" cy="${yB(val(m))}" r="5" fill="${col}"/><text x="${xB(m) + 7}" y="${yB(val(m)) + dy}" class="cv">${lab} ${n1(m)} : ${K(val(m))}</text>` : "";
+    if (ref) b += mark(ref.m, "#2a78d6", "référence", Math.abs(ref.m - mult) < 0.05 ? -8 : (ref.m < mult ? 14 : -8));
+    if (!ref || Math.abs(ref.m - mult) >= 0.05) b += mark(mult, "#eb6834", "retenu", ref && ref.m < mult ? -8 : 14);
+    b += `<text x="${x0}" y="${top - 10}" class="cm">valeur des titres${ok(treso) ? "" : " (hors trésorerie)"}</text><text x="${x1}" y="${H - 2}" text-anchor="end" class="cm">multiple de l'EBE retraité</text>`;
+    return `<div class="card mult-chart"><h3>Modélisation du multiple <small>— sa construction, et ce qu'il change au prix</small></h3>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Construction du multiple et valeur des titres selon le multiple">${a}${b}</svg>
+      <p class="note">Argos Index : médiane des transactions non cotées de la zone euro (Epsilon Research, ${ARGOS.date}, VE 15 à 500 M€). Secteur : racine du rapport entre la médiane VE / EBE des sociétés cotées du secteur et celle de toute la cote, bornée entre 0,75 et 1,35. Taille : 0,5 sous 2 M€ de CA, 0,6 jusqu'à 5 M€, 0,7 jusqu'à 15 M€, 0,85 jusqu'à 50 M€. Le multiple retenu (orange) se change plus bas, par exemple avec celui d'une évaluation ou d'un pacte d'associés.</p></div>`;
+  }
+
   function comparables(o) {
     if (typeof state === "undefined" || !state.companies || !state.meta) return "";
     const ls = listedSector(o.naf, o.sec);
@@ -485,7 +524,7 @@ const PME = (() => {
       <h3 class="part"><span class="part-n">2</span> La reprise <small>— à quel prix, et la dette d'acquisition est-elle remboursable ?</small></h3>
       ${comparables(o)}
       ${step("€", "Prix et montage de la reprise", "trésorerie − dettes + multiple × EBE retraité", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p>
-        <p class="note">Valeur des titres = trésorerie − dettes financières + multiple × EBE retraité. L'EBE est retraité de ce qui revient chaque année à l'entreprise sans passer par l'EBE : crédit d'impôt recherche ou innovation (comptabilisé en impôt), intéressement et participation (rémunération discrétionnaire du résultat). Les montants en k€ se corrigent avec les comptes complets.</p><div class="kpis">
+        <p class="note">Valeur des titres = trésorerie − dettes financières + multiple × EBE retraité. L'EBE est retraité de ce qui revient chaque année à l'entreprise sans passer par l'EBE : crédit d'impôt recherche ou innovation (comptabilisé en impôt), intéressement et participation (rémunération discrétionnaire du résultat). Les montants en k€ se corrigent avec les comptes complets.</p>${multChart(ref, mult, ebeR, dettes, pc.treso)}<div class="kpis">
         ${kpi("EBE publié", K(o.ebe))}
         ${kpi("+ crédit d'impôt (CIR / CII)", `<input class="param" type="number" step="10" data-cparam="ci" value="${pc.ci ?? ""}"> k€`, `<small class="bench">${ciEst > 0 ? `estimé à ${K(ciEst)} : résultat net supérieur au résultat courant avant impôt` : "aucun repéré dans les comptes"}</small>`)}
         ${kpi("+ intéressement, participation", `<input class="param" type="number" step="10" data-cparam="inter" value="${pc.inter ?? ""}"> k€`, `<small class="bench">dans l'annexe des comptes</small>`)}

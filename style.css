@@ -561,3 +561,7 @@ h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .tdb-panel .lbl { fill: var(--ink); font-size: 11.5px; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 .tdb-panel .grid.zero { stroke: var(--muted); }
 #view-tdb > .tdb-list { margin-top: 10px; }
+
+.mult-chart svg text { font-size: 12px; fill: var(--muted); }
+.mult-chart svg text.cv { font-weight: 700; fill: var(--ink); }
+.mult-chart svg text.cm { font-size: 11px; }
