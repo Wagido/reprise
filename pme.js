@@ -277,8 +277,8 @@ const PME = (() => {
       tHot = d.id;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        box.querySelectorAll("circle.dp.hot").forEach((x) => { x.classList.remove("hot"); x.setAttribute("r", 3.2); });
-        box.querySelectorAll(`circle.dp[data-k="${c.dataset.k}"]`).forEach((x) => { x.classList.add("hot"); x.setAttribute("r", 7); x.parentNode.appendChild(x); });
+        box.querySelectorAll("circle.dp.hot").forEach((x) => { x.classList.remove("hot"); x.setAttribute("r", 4); });
+        box.querySelectorAll(`circle.dp[data-k="${c.dataset.k}"]`).forEach((x) => { x.classList.add("hot"); x.setAttribute("r", 7.5); x.parentNode.appendChild(x); });
         $("ptdbHot").innerHTML = hotLine();
       });
     });

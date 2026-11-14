@@ -79,7 +79,7 @@ const TDB = (() => {
       .sort((a, b) => order[a.s[idx]] - order[b.s[idx]]);
     shown.forEach((d) => {
       const k = d.k ?? D.indexOf(d);
-      marks += `<circle class="dp s-${d.s[idx]}${d.id === h ? " hot" : ""}" data-k="${k}" cx="${sx(d.f[p.x.k]).toFixed(1)}" cy="${sy(d.f[p.y.k]).toFixed(1)}" r="${d.id === h ? 7 : 3.2}"/>`;
+      marks += `<circle class="dp s-${d.s[idx]}${d.id === h ? " hot" : ""}" data-k="${k}" cx="${sx(d.f[p.x.k]).toFixed(1)}" cy="${sy(d.f[p.y.k]).toFixed(1)}" r="${d.id === h ? 7.5 : 4}"/>`;
     });
     const counts = { green: 0, orange: 0, red: 0 };
     shown.forEach((d) => { if (counts[d.s[idx]] !== undefined) counts[d.s[idx]]++; });
@@ -90,13 +90,12 @@ const TDB = (() => {
   }
 
   // Taille réelle des graphiques, en pixels : les 4 tiennent dans l'écran (2 × 2) sur ordinateur.
+  // Taille réelle des graphiques, en pixels, aux proportions d'origine (3 de large pour 2 de haut) :
+  // le texte et les points gardent leur taille quel que soit l'écran.
   function fit(box) {
     const w = box.clientWidth || 900;
-    if (window.innerWidth <= 900) return { W: Math.max(280, w - 24), H: 300 };
-    const top = box.getBoundingClientRect().top;
-    const list = 50, card = 2 * 62, gaps = 24;                           // liste repliée, titre et note de chaque carte
-    const H = Math.round(Math.max(200, Math.min(480, (window.innerHeight - top - list - card - gaps) / 2)));
-    return { W: Math.round((w - 10) / 2 - 24), H };
+    const W = Math.round(window.innerWidth <= 900 ? Math.max(280, w - 24) : (w - 12) / 2 - 24);
+    return { W, H: Math.round(Math.max(240, Math.min(440, W / 1.55))) };
   }
   const fitH = fit;
 
@@ -144,8 +143,8 @@ const TDB = (() => {
       hot = d.c.id;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        box.querySelectorAll("circle.dp.hot").forEach((x) => { x.classList.remove("hot"); x.setAttribute("r", 3.2); });
-        box.querySelectorAll(`circle.dp[data-k="${c.dataset.k}"]`).forEach((x) => { x.classList.add("hot"); x.setAttribute("r", 7); x.parentNode.appendChild(x); });
+        box.querySelectorAll("circle.dp.hot").forEach((x) => { x.classList.remove("hot"); x.setAttribute("r", 4); });
+        box.querySelectorAll(`circle.dp[data-k="${c.dataset.k}"]`).forEach((x) => { x.classList.add("hot"); x.setAttribute("r", 7.5); x.parentNode.appendChild(x); });
         $("tdbHot").innerHTML = hotLine();
       });
     });
