@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#1d4e5f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="lib/leaflet.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,6 +24,7 @@
     <button role="tab" aria-selected="true" data-view="list">Sociétés</button>
     <button role="tab" aria-selected="false" data-view="sectors">Secteurs</button>
     <button role="tab" aria-selected="false" data-view="compare">Comparer</button>
+    <button role="tab" aria-selected="false" data-view="pme">PME</button>
     <button role="tab" aria-selected="false" data-view="help">Méthode</button>
   </nav>
 </header>
@@ -80,6 +82,23 @@
     <div class="tablewrap"><table id="compareTable"></table></div>
   </section>
 
+  <section id="view-pme" class="view" hidden>
+    <p class="count" id="pmeInfo">PME françaises : comptes publics déposés au greffe.</p>
+    <div class="filters pme-filters">
+      <input type="search" id="pQ" placeholder="Nom, commune, code NAF, SIREN…" aria-label="Recherche PME">
+      <label>Département <select id="pDep"></select></label>
+      <label>Activité <select id="pSec"></select></label>
+      <label>CA min (M€) <input type="number" id="pCaMin" inputmode="decimal" placeholder="2"></label>
+      <label>CA max (M€) <input type="number" id="pCaMax" inputmode="decimal" placeholder="50"></label>
+      <label>Marge d'EBE min (%) <input type="number" id="pMeMin" inputmode="decimal" placeholder="—"></label>
+      <label>Remboursement max (ans) <input type="number" id="pRembMax" inputmode="decimal" placeholder="—"></label>
+      <label class="check"><input type="checkbox" id="pProfit"> Bénéficiaire</label>
+    </div>
+    <div id="pmeMap" class="pme-map"></div>
+    <div class="tablewrap"><table><thead><tr id="pThead"></tr></thead><tbody id="pTbody"></tbody></table></div>
+    <button id="pMore" class="ghost wide" hidden>Afficher plus</button>
+  </section>
+
   <section id="view-help" class="view prose" hidden>
     <h2>La méthode : le plan d'analyse en 4 étapes</h2>
     <div id="methodPlan"></div>
@@ -116,5 +135,7 @@
 
 <script src="app.js"></script>
 <script src="analyse.js"></script>
+<script src="lib/leaflet.js"></script>
+<script src="pme.js"></script>
 </body>
 </html>

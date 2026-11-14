@@ -17,6 +17,18 @@ GitHub Actions produit un fichier JSON publié sur GitHub Pages avec l'interface
 
 Les montants sont convertis en millions d'euros au taux moyen annuel (approximatif).
 
+## PME françaises (onglet PME)
+
+| Source | Contenu |
+|---|---|
+| « Ratios financiers BCE / INPI » (`data.economie.gouv.fr`) | CA, EBE, résultat d'exploitation, résultat net, marge d'EBE, CAF / CA, taux d'endettement, capacité de remboursement, charges financières / EBE, liquidité, autonomie financière, état de l'outil (immobilisations nettes / brutes), BFR, stocks, crédit clients et fournisseurs en jours |
+| Annuaire des entreprises (`recherche-entreprises.api.gouv.fr`) | nom, code NAF, effectif, commune et coordonnées du siège |
+
+Sociétés actives et diffusibles, CA de 2 à 50 M€, comptes publics (les sociétés qui ont choisi
+la confidentialité de leurs comptes n'y figurent pas). Aucune donnée sur les dirigeants n'est
+collectée. Carte (Leaflet, Plan IGN), filtres, classement et fiche selon le plan en 4 étapes,
+avec valorisation par multiple d'EBE et montage LBO indicatif.
+
 ## Ce que fait l'interface
 
 - Filtres : pays, secteur, exercice, fourchette de CA, marge EBITDA minimale, levier maximal,
@@ -38,6 +50,7 @@ Python 3.9 ou plus, sans dépendance.
 python3 collect/sec.py      # USA (première fois : ~30 min, à cause des fiches secteur)
 python3 collect/esef.py     # France (~10 min)
 python3 collect/build.py    # fusion -> data/companies.json
+python3 collect/pme.py      # PME françaises -> data/pme.json (première fois : 1 à 2 h)
 python3 -m http.server 8000 # puis ouvrir http://localhost:8000
 ```
 

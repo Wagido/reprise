@@ -260,3 +260,9 @@ details.method li { margin-bottom: 6px; }
   border-radius: 6px; padding: 6px 9px; font-size: 12.5px; box-shadow: var(--shadow); max-width: 260px; z-index: 3;
 }
 #compareTable tbody tr { cursor: pointer; }
+
+/* ---------- PME ---------- */
+.pme-filters { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
+.pme-map { height: 460px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 12px; background: var(--accent-soft); z-index: 0; }
+.leaflet-tooltip { font: 12.5px/1.4 system-ui, sans-serif; }
+@media (max-width: 640px) { .pme-map { height: 340px; } }
