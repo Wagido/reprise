@@ -222,12 +222,12 @@ const PME = (() => {
       guides: [{ axis: "x", v: 0 }], note: "En haut à droite : la PME grandit et garde une marge élevée." },
     { n: 2, title: "Les investissements", sub: "BFR × état de l'outil",
       x: { k: "bfrj", label: "BFR en jours de CA", min: -60, max: 180, fmt: (v) => nf0.format(v) + " j" },
-      y: { k: "vet", label: "État de l'outil (immobilisations nettes / brutes)", min: 0, max: 100, fmt: PP },
+      y: { k: "vet", label: "État de l'outil (immo. nettes / brutes)", min: 0, max: 100, fmt: PP },
       guides: [{ axis: "y", v: 30, label: "outil vieillissant ↓" }, { axis: "x", v: 0 }],
       note: "Sous 30 % : l'outil est largement amorti, des investissements de remise à niveau sont à prévoir après la reprise." },
     { n: 3, title: "Le financement", sub: "capacité de remboursement × autonomie",
       x: { k: "remb", label: "Dettes financières / CAF (années)", min: -2, max: 10, fmt: (v) => nf0.format(v) + " ans" },
-      y: { k: "auto", label: "Autonomie financière (capitaux propres / bilan)", min: 0, max: 100, fmt: PP },
+      y: { k: "auto", label: "Autonomie financière", min: 0, max: 100, fmt: PP },
       guides: [{ axis: "x", v: 3, label: "3 ans" }, { axis: "y", v: 25, label: "25 %", above: true }],
       zone: { x1: -2, x2: 3, y1: 25, y2: 100 }, note: "Zone tramée : dette remboursable en 3 ans de CAF au plus et fonds propres solides — une cible qui laisse de la place à la dette de reprise." },
     { n: 4, title: "La rentabilité", sub: "CAF × marge nette",
@@ -242,19 +242,19 @@ const PME = (() => {
     tdb = list.map((o, k) => { const s = stepColors(o); return { o, k, id: o.siren, f: o, s, all: s.every((x) => x === "green") }; });
     const good = tdb.filter((d) => d.all).sort((a, b) => (b.o.me || 0) - (a.o.me || 0));
     $("pmeInfo").textContent = `${nf0.format(tdb.length)} PME sur ${nf0.format(data.list.length)} (CA de ${data.meta.ca_min / 1e6} à ${data.meta.ca_max / 1e6} M€, comptes publics)`;
+    const Hh = TDB.fitH($("ptdbOut"));
     $("ptdbOut").innerHTML = `
-      <div class="card"><h3>Le plan en 4 étapes, pour toutes les PME</h3>
-        <p class="note">Chaque point est une PME (filtres ci-dessus appliqués). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
-          <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>. Les comptes publics des PME ne donnent ni l'actif économique ni le ROCE : les graphiques utilisent les ratios publiés (BCE / INPI).</p>
-        <label class="check tdb-toggle"><input type="checkbox" id="ptdbAll" ${tOnly ? "checked" : ""}> N'afficher que les PME bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(tdb.length)})</label>
+      <div class="tdb-bar">
+        <label class="check"><input type="checkbox" id="ptdbAll" ${tOnly ? "checked" : ""}> Seulement les bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(tdb.length)})</label>
+        <span class="cnt" title="Verdict de chaque étape, mêmes règles que la synthèse des fiches. Les comptes publics des PME ne donnent ni l'actif économique ni le ROCE : les graphiques utilisent les ratios publiés (BCE / INPI)."><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>
         <div id="ptdbHot" class="tdb-hot">${hotLine()}</div>
       </div>
-      <div class="tdb-grid">${PANELS.map((pn) => TDB.panel(pn, tdb, tOnly, tHot)).join("")}</div>
-      <div class="card"><h3>Bonnes dans les 4 étapes <small>— classées par marge d'EBE</small></h3>
+      <div class="tdb-grid">${PANELS.map((pn) => TDB.panel(pn, tdb, tOnly, tHot, Hh)).join("")}</div>
+      <details class="card tdb-list"><summary><b>Bonnes dans les 4 étapes (${nf0.format(good.length)})</b> <small>— classées par marge d'EBE · ouvrir la liste</small></summary>
         <div class="tablewrap"><table><thead><tr><th class="l">Société</th><th class="l">NAF</th><th>CA</th><th>Croissance</th><th>Marge d'EBE</th><th>BFR</th><th>Remb. (ans)</th><th>Autonomie</th><th>Marge nette</th></tr></thead><tbody>
         ${good.slice(0, 100).map((d) => `<tr data-k="${d.k}"><td class="l">${esc(d.o.n)}<span class="flag">${esc(d.o.com || "")} (${esc(d.o.dep || "")})</span></td><td class="l">${esc(d.o.naf || "")}</td>
           <td>${K(d.o.ca)}</td><td>${pct(d.o.g, true)}</td><td>${P1(d.o.me)}</td><td>${J(d.o.bfrj)}</td><td>${ok(d.o.remb) ? (d.o.remb < 0 ? "trésorerie nette" : nf1.format(d.o.remb)) : "—"}</td><td>${P1(d.o.auto)}</td><td>${P1(d.o.nm)}</td></tr>`).join("")}
-        </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${nf0.format(good.length)}.</p>` : ""}</div>`;
+        </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${nf0.format(good.length)}.</p>` : ""}</details>`;
   }
   function hotLine() {
     const d = tdb.find((x) => x.id === tHot);
@@ -296,7 +296,7 @@ const PME = (() => {
     return `<small class="bench">secteur ${fmt(m)}${ok(p) ? ` · <span class="${good ? "pos" : "neg"}">${p}e centile</span>` : ""}</small>`;
   }
   function step(n, title, sub, body) {
-    return `<section class="step"><h2 class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small></h2>${body}</section>`;
+    return `<details class="step" name="etapes"><summary class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small><span class="open-hint">détail</span></summary>${body}</details>`;
   }
 
   function histChart(o) {

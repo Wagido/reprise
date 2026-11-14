@@ -40,8 +40,8 @@ const TDB = (() => {
   }
 
   // Un panneau : D = [{ id, f, s }], s = verdicts des 4 étapes ; réutilisé par la vue générale des PME.
-  function panel(p, D = data, only = onlyAll, h = hot) {
-    const W = 460, H = 300, L = 46, R = 10, T = 10, B = 34;
+  function panel(p, D = data, only = onlyAll, h = hot, H = 300) {
+    const W = 460, L = 46, R = 10, T = 10, B = 34;
     const tx = (v) => (p.x.log ? Math.log10(v) : v), ty = (v) => (p.y.log ? Math.log10(v) : v);
     const sx = (v) => L + (tx(Math.min(p.x.max, Math.max(p.x.min, v))) - tx(p.x.min)) / (tx(p.x.max) - tx(p.x.min)) * (W - L - R);
     const sy = (v) => H - B - (ty(Math.min(p.y.max, Math.max(p.y.min, v))) - ty(p.y.min)) / (ty(p.y.max) - ty(p.y.min)) * (H - T - B);
@@ -82,29 +82,40 @@ const TDB = (() => {
     });
     const counts = { green: 0, orange: 0, red: 0 };
     shown.forEach((d) => { if (counts[d.s[idx]] !== undefined) counts[d.s[idx]]++; });
-    return `<div class="card tdb-panel"><h3><span class="num">${p.n}</span> ${p.title} <small>— ${p.sub}</small></h3>
+    return `<div class="card tdb-panel"><h3 title="${esc(p.note)}"><span class="num">${p.n}</span> ${p.title} <small>${p.sub}</small>
+        <span class="cnt"><i class="sw s-green"></i>${counts.green} <i class="sw s-orange"></i>${counts.orange} <i class="sw s-red"></i>${counts.red}</span></h3>
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(p.title)}">${g}${marks}</svg>
-      <p class="note">${p.note} <span class="cnt"><i class="sw s-green"></i>${counts.green} <i class="sw s-orange"></i>${counts.orange} <i class="sw s-red"></i>${counts.red}</span></p></div>`;
+      <p class="note pnote">${p.note}</p></div>`;
+  }
+
+  // Hauteur des graphiques pour que les 4 tiennent dans l'écran (2 × 2) sur ordinateur.
+  function fitH(box) {
+    const two = window.innerWidth > 900;
+    if (!two) return 300;
+    const top = box.getBoundingClientRect().top + window.scrollY;
+    const avail = (window.innerHeight - top - 150) / 2;      // barre d'outils, titres et liste repliée
+    const cw = box.clientWidth / 2 - 40;
+    return Math.round(Math.max(200, Math.min(360, 460 * avail / Math.max(200, cw))));
   }
 
   function render() {
     build();
     const good = data.filter((d) => d.all).sort((a, b) => (b.f.roce || 0) - (a.f.roce || 0));
+    const Hh = fitH($("tdbOut"));
     $("tdbOut").innerHTML = `
-      <div class="card"><h3>Le plan en 4 étapes, pour toutes les sociétés</h3>
-        <p class="note">Chaque point est une société (filtres du haut appliqués, exercice ${$("year").value}). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
-          <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>. Survoler un point montre la société dans les 4 graphiques.</p>
-        <label class="check tdb-toggle"><input type="checkbox" id="tdbAll" ${onlyAll ? "checked" : ""}> N'afficher que les sociétés bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(data.length)})</label>
+      <div class="tdb-bar">
+        <label class="check"><input type="checkbox" id="tdbAll" ${onlyAll ? "checked" : ""}> Seulement les bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(data.length)})</label>
+        <span class="cnt" title="Verdict de chaque étape, mêmes règles que la synthèse des fiches"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>
         <div id="tdbHot" class="tdb-hot">${hotLine()}</div>
       </div>
-      <div class="tdb-grid">${PANELS.map(panel).join("")}</div>
-      <div class="card"><h3>Bonnes dans les 4 étapes <small>— classées par ROCE après IS</small></h3>
+      <div class="tdb-grid">${PANELS.map((pn) => panel(pn, data, onlyAll, hot, Hh)).join("")}</div>
+      <details class="card tdb-list"><summary><b>Bonnes dans les 4 étapes (${nf0.format(good.length)})</b> <small>— classées par ROCE après IS · ouvrir la liste</small></summary>
         <div class="tablewrap"><table><thead><tr><th class="l">Société</th><th class="l">Secteur</th><th>CA M€</th><th>Croissance</th><th>Marge d'EBE</th><th>BFR</th><th>Dette nette / EBE</th><th>ROCE</th><th>PER</th></tr></thead><tbody>
         ${good.slice(0, 100).map((d) => `<tr data-k="${data.indexOf(d)}"><td class="l">${esc(d.c.n)}<span class="flag">${esc(d.c.c)} · ${esc(d.c.t || "")}</span></td>
           <td class="l">${esc((state.meta.sectors[d.c.s] || "").split(/[,(]/)[0])}</td><td>${ok(d.f.rev) ? nf0.format(d.f.rev * (fx(d.c, Number($("year").value)) || 1)) : "—"}</td>
           <td>${ok(d.f.growth) ? P(d.f.growth) : "—"}</td><td>${ok(d.f.ebitdaMargin) ? P(d.f.ebitdaMargin) : "—"}</td><td>${ok(d.f.bfrDays) ? nf0.format(d.f.bfrDays) + " j" : "—"}</td>
           <td>${ok(d.f.netDebt) && d.f.netDebt <= 0 ? "trésorerie nette" : ok(d.f.ndEbitda) ? X(d.f.ndEbitda) : "—"}</td><td>${ok(d.f.roce) ? P(d.f.roce) : "—"}</td><td>${ok(d.f.per) ? nf1.format(d.f.per) : "—"}</td></tr>`).join("")}
-        </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${good.length}.</p>` : ""}</div>`;
+        </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${good.length}.</p>` : ""}</details>`;
   }
 
   function hotLine() {
@@ -139,5 +150,5 @@ const TDB = (() => {
     });
   }
 
-  return { mount, render, panel, STATUS };
+  return { mount, render, panel, fitH, STATUS };
 })();

@@ -448,7 +448,7 @@ const Analyse = (() => {
   const light = (state) => `<i class="light ${state}" aria-label="${state === "green" ? "bon" : state === "orange" ? "à surveiller" : state === "red" ? "alerte" : "inconnu"}"></i>`;
   // Chaque étape est repliable : on lit d'abord le résumé, on ouvre le détail au besoin.
   function step(n, title, sub, body) {
-    return `<details class="step"><summary class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small><span class="open-hint">détail</span></summary>${body}</details>`;
+    return `<details class="step" name="etapes"><summary class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small><span class="open-hint">détail</span></summary>${body}</details>`;
   }
 
   // Valeur estimée des capitaux propres : multiple sectoriel et flux actualisés (même méthode que le stock picking).

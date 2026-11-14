@@ -785,7 +785,24 @@ function bind() {
   $("closeDetail").onclick = closeDetail;
   $("detail").onclick = (e) => { if (e.target === $("detail")) closeDetail(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
-  window.addEventListener("resize", () => { syncHeader(); if (state.view === "list" || state.view === "pme") setView(state.view); });
+  let rz;
+  window.addEventListener("resize", () => {
+    syncHeader();
+    clearTimeout(rz);
+    rz = setTimeout(() => { if (["list", "pme", "tdb", "ptdb"].includes(state.view)) setView(state.view); }, 150);
+  });
+  // Filtres secondaires repliés derrière « Plus de filtres » ; le bouton compte ceux qui sont actifs.
+  const moreCount = (box) => {
+    const n = [...box.querySelectorAll("[data-more] input")].filter((x) => (x.type === "checkbox" ? x.checked : x.value !== "")).length;
+    box.querySelector(".more-n").textContent = n ? n : "";
+  };
+  document.querySelectorAll(".more-btn").forEach((b) => {
+    const box = b.closest(".filters");
+    b.onclick = () => { const o = box.classList.toggle("open"); b.setAttribute("aria-expanded", String(o)); syncHeader(); };
+    box.addEventListener("input", () => moreCount(box));
+    box.addEventListener("change", () => moreCount(box));
+    moreCount(box);
+  });
 }
 
 // Exercice par défaut : le plus récent pour lequel au moins 60 % des sociétés
@@ -833,8 +850,8 @@ async function init() {
   };
   bind();
   bindCompare();
-  let start = "list";
-  try { start = localStorage.getItem("reprise.view") || "list"; } catch (e) { /* ignoré */ }
+  let start = "tdb";
+  try { start = localStorage.getItem("reprise.view") || "tdb"; } catch (e) { /* ignoré */ }
   setView(SPACE_OF[start] && start !== "compare" ? start : "tdb");
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }

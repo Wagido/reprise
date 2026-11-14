@@ -17,14 +17,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand">
-    <img src="icon.svg" alt="" width="28" height="28">
-    <div>
-      <h1>Reprise <button class="theme-btn" id="themeBtn" title="Mode clair / sombre" aria-label="Basculer entre mode clair et mode sombre">☾</button></h1>
-      <p class="sub" id="dataInfo">Chargement des données…</p>
-    </div>
-  </div>
-  <div class="nav">
+  <div class="brand"><img src="icon.svg" alt="" width="24" height="24"><h1>Reprise</h1></div>
     <div class="spaces" role="tablist" aria-label="Usage">
       <button role="tab" data-space="invest" aria-selected="true">Investir <small>sociétés cotées</small></button>
       <button role="tab" data-space="reprise" aria-selected="false">Reprendre <small>PME</small></button>
@@ -40,23 +33,25 @@
       <button role="tab" aria-selected="false" data-view="pme" data-in="reprise">Carte et analyse</button>
       <button role="tab" aria-selected="false" data-view="lbo" data-in="reprise">Simulateur LBO</button>
     </nav>
-  </div>
+  <p class="sub" id="dataInfo">Chargement des données…</p>
+  <button class="theme-btn" id="themeBtn" title="Mode clair / sombre" aria-label="Basculer entre mode clair et mode sombre">☾</button>
 </header>
 
 <section class="filters" id="filters">
   <input type="search" id="q" placeholder="Nom, ticker, activité…" aria-label="Recherche">
-  <label>Zone
+  <label><span class="lt">Zone</span>
     <select id="country"><option value="">Toutes zones</option><option value="FR">France</option><option value="US">USA</option></select>
   </label>
-  <label>Secteur <select id="sector"><option value="">Tous</option></select></label>
-  <label>Exercice <select id="year"></select></label>
-  <label>CA min (M€) <input type="number" id="revMin" inputmode="numeric" placeholder="0"></label>
-  <label>CA max (M€) <input type="number" id="revMax" inputmode="numeric" placeholder="∞"></label>
-  <label>Marge EBITDA min (%) <input type="number" id="ebitdaMin" inputmode="numeric" placeholder="—"></label>
-  <label>Dette nette / EBITDA max <input type="number" id="levMax" step="0.5" inputmode="decimal" placeholder="—"></label>
-  <label class="check"><input type="checkbox" id="profit3"> Bénéficiaire 3 ans de suite</label>
-  <label class="check"><input type="checkbox" id="complete"> Comptes complets seulement</label>
-  <label class="check" title="Pour les banques et assurances, EBE, BFR et dette nette n'ont pas de sens"><input type="checkbox" id="banks"> Inclure banques et assurances</label>
+  <label><span class="lt">Secteur</span> <select id="sector"><option value="">Tous secteurs</option></select></label>
+  <label><span class="lt">Exercice</span> <select id="year"></select></label>
+  <button type="button" class="more-btn" aria-expanded="false">Plus de filtres <span class="more-n"></span></button>
+  <label data-more>CA min (M€) <input type="number" id="revMin" inputmode="numeric" placeholder="0"></label>
+  <label data-more>CA max (M€) <input type="number" id="revMax" inputmode="numeric" placeholder="∞"></label>
+  <label data-more>Marge EBITDA min (%) <input type="number" id="ebitdaMin" inputmode="numeric" placeholder="—"></label>
+  <label data-more>Dette nette / EBITDA max <input type="number" id="levMax" step="0.5" inputmode="decimal" placeholder="—"></label>
+  <label data-more class="check"><input type="checkbox" id="profit3"> Bénéficiaire 3 ans de suite</label>
+  <label data-more class="check"><input type="checkbox" id="complete"> Comptes complets seulement</label>
+  <label data-more class="check" title="Pour les banques et assurances, EBE, BFR et dette nette n'ont pas de sens"><input type="checkbox" id="banks"> Inclure banques et assurances</label>
   <div class="actions">
     <button id="reset" class="ghost">Réinitialiser</button>
     <button id="csv">Exporter CSV</button>
@@ -102,14 +97,15 @@
     <p class="count" id="pmeInfo">PME françaises : comptes publics déposés au greffe.</p>
     <div class="filters pme-filters">
       <input type="search" id="pQ" placeholder="Nom, commune, code NAF, SIREN…" aria-label="Recherche PME">
-      <label>Département <select id="pDep"></select></label>
-      <label>Activité <select id="pSec"></select></label>
-      <label>CA min (M€) <input type="number" id="pCaMin" inputmode="decimal" placeholder="2"></label>
-      <label>CA max (M€) <input type="number" id="pCaMax" inputmode="decimal" placeholder="50"></label>
-      <label>Marge d'EBE min (%) <input type="number" id="pMeMin" inputmode="decimal" placeholder="—"></label>
-      <label>Remboursement max (ans) <input type="number" id="pRembMax" inputmode="decimal" placeholder="—"></label>
-      <label class="check"><input type="checkbox" id="pProfit"> Bénéficiaire</label>
-      <label class="check"><input type="checkbox" id="pHold"> Inclure holdings et sociétés immobilières</label>
+      <label><span class="lt">Département</span> <select id="pDep"></select></label>
+      <label><span class="lt">Activité</span> <select id="pSec"></select></label>
+      <button type="button" class="more-btn" aria-expanded="false">Plus de filtres <span class="more-n"></span></button>
+      <label data-more>CA min (M€) <input type="number" id="pCaMin" inputmode="decimal" placeholder="2"></label>
+      <label data-more>CA max (M€) <input type="number" id="pCaMax" inputmode="decimal" placeholder="50"></label>
+      <label data-more>Marge d'EBE min (%) <input type="number" id="pMeMin" inputmode="decimal" placeholder="—"></label>
+      <label data-more>Remboursement max (ans) <input type="number" id="pRembMax" inputmode="decimal" placeholder="—"></label>
+      <label data-more class="check"><input type="checkbox" id="pProfit"> Bénéficiaire</label>
+      <label data-more class="check"><input type="checkbox" id="pHold"> Inclure holdings et sociétés immobilières</label>
     </div>
   </section>
   <section id="view-ptdb" class="view" hidden><div id="ptdbOut"></div></section>
