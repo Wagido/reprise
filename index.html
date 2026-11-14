@@ -8,8 +8,8 @@
 <meta name="theme-color" content="#1d4e5f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="lib/leaflet.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="lib/leaflet.css?v=dev">
+<link rel="stylesheet" href="style.css?v=dev">
 <script>
   // Thème : clair par défaut, sombre si choisi (mémorisé dans le navigateur).
   try { document.documentElement.dataset.theme = localStorage.getItem("reprise.theme") || "light"; } catch (e) { document.documentElement.dataset.theme = "light"; }
@@ -159,13 +159,13 @@
   </div>
 </aside>
 
-<script src="app.js"></script>
-<script src="analyse.js"></script>
-<script src="lib/leaflet.js"></script>
-<script src="pme.js"></script>
-<script src="lbo.js"></script>
-<script src="picking.js"></script>
-<script src="nuages.js"></script>
-<script src="tdb.js"></script>
+<script src="app.js?v=dev"></script>
+<script src="analyse.js?v=dev"></script>
+<script src="lib/leaflet.js?v=dev"></script>
+<script src="pme.js?v=dev"></script>
+<script src="lbo.js?v=dev"></script>
+<script src="picking.js?v=dev"></script>
+<script src="nuages.js?v=dev"></script>
+<script src="tdb.js?v=dev"></script>
 </body>
 </html>
