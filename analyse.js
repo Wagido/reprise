@@ -80,8 +80,17 @@ const Analyse = (() => {
       capexDa: ok(g("capex")) && ok(da) && da > 0 ? g("capex") / da : null,
       capexRev: ok(g("capex")) && ok(rev) && rev > 0 ? g("capex") / rev : null,
       // Capitalisation : cours actuel × nombre d'actions si disponible, sinon « public float » SEC de l'année.
-      mcap: c.px && c.px[0] && c.px[1] ? c.px[0] * c.px[1] / 1e6 : g("market_cap"),
-      mcapLive: !!(c.px && c.px[0] && c.px[1]),
+      ...(() => {
+        // Capitalisation au dernier cours (cours × actions déclarées). Contrôle de cohérence avec la
+        // capitalisation flottante déclarée à la SEC : si le calcul en donne moins de la moitié, le nombre
+        // d'actions ne couvre sans doute qu'une catégorie de titres (sociétés à plusieurs classes, LP) :
+        // on garde alors la valeur déclarée.
+        const fl = (c.v.market_cap || []).filter(ok);
+        const lastFloat = fl.length ? fl[fl.length - 1] : null;
+        const live = c.px && c.px[0] && c.px[1] ? c.px[0] * c.px[1] / 1e6 : null;
+        if (ok(live) && (!ok(lastFloat) || live >= 0.5 * lastFloat)) return { mcap: live, mcapLive: true };
+        return { mcap: ok(lastFloat) && i === state.meta.years.length - 1 ? lastFloat : g("market_cap") ?? lastFloat, mcapLive: false };
+      })(),
       // Fiche 2 : état de l'outil industriel = immobilisations nettes / brutes.
       wear: ok(g("ppe")) && ok(g("ppe_gross")) && g("ppe_gross") > 0 ? g("ppe") / g("ppe_gross") : null,
       // Fiche 3 : ratios de liquidité.
@@ -864,5 +873,10 @@ const Analyse = (() => {
     params[name] = Number.isFinite(v) && v > 0 ? v : (name === "mult" ? null : params[name]);
     saveParams();
   }
-  return { render, figures, piotroski, methodHtml: METHOD_HTML, params, setParam };
+  function sectorMedians(sector, i) {
+    const st = sectorStats(sector, i);
+    return Object.fromEntries(BENCH.map((k) => [k, st[k] ? st[k].median : null]));
+  }
+
+  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, methodHtml: METHOD_HTML, params, setParam };
 })();

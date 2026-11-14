@@ -586,6 +586,7 @@ function render() {
   if (state.view === "list") renderList();
   else if (state.view === "sectors") renderSectors();
   else if (state.view === "compare") renderCompare();
+  else if (state.view === "pick") Picking.render();
   saveFilters();
 }
 
@@ -598,10 +599,11 @@ function onFilter() {
 function setView(v) {
   state.view = v;
   document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const s of ["list", "sectors", "compare", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  for (const s of ["list", "sectors", "compare", "pick", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
   $("filters").hidden = v === "help" || v === "pme" || v === "lbo";
   if (v === "pme") PME.show();
   if (v === "lbo") LBO.mount();
+  if (v === "pick") Picking.mount();
   render();
 }
 

@@ -298,3 +298,13 @@ ul.pio li span { color: var(--ink); }
 ul.pio li small { color: var(--muted); }
 ul.pio li.pos { color: var(--good); } ul.pio li.neg { color: var(--bad); } ul.pio li.na { color: var(--muted); }
 .radar .rl.nd { fill: var(--muted); font-weight: 400; }
+
+/* ---------- Stock picking ---------- */
+.pick-params, .pick-custom { border: 0; padding: 4px 0; background: transparent; }
+.pick-params input, .pick-custom input { width: 70px; }
+.score.partial { background: var(--bg); color: var(--muted); }
+button.star { border: 0; background: transparent; font-size: 18px; cursor: pointer; color: var(--c-bfr); padding: 0 4px; }
+table.watch input { width: 100px; border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; background: var(--bg); color: var(--ink); }
+table.watch input[type="text"] { width: 180px; }
+.pick-params label, .pick-custom label { flex-direction: row; align-items: center; gap: 6px; }
+.warn { color: var(--c-bfr); cursor: help; }
