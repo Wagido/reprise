@@ -325,8 +325,8 @@ table.watch input[type="text"] { width: 180px; }
 }
 
 /* ---------- Nuages (palette validée : bleu / orange, clair et sombre) ---------- */
-:root { --fr: #2a78d6; --us: #eb6834; }
-@media (prefers-color-scheme: dark) { :root { --fr: #3987e5; --us: #d95926; } }
+:root { --fr: #2a78d6; --us: #eb6834; --as: #1baf7a; }
+@media (prefers-color-scheme: dark) { :root { --fr: #3987e5; --us: #d95926; --as: #199e70; } }
 #nuage { width: 100%; height: auto; display: block; }
 #nuage .grid { stroke: var(--line); } #nuage .grid.zero { stroke: var(--muted); }
 #nuage .ax { fill: var(--muted); font-size: 11px; } #nuage .ax.t { font-size: 12px; }
@@ -336,7 +336,8 @@ table.watch input[type="text"] { width: 180px; }
 #nuage circle.pt { cursor: pointer; }
 circle.full.g-cac { fill: var(--fr); stroke: var(--panel); stroke-width: 1.5; }
 circle.full.g-sp { fill: var(--us); stroke: var(--panel); stroke-width: 1.5; fill-opacity: .85; }
-circle.ring.g-fr { fill: none; stroke: var(--fr); stroke-width: 1.4; }
+circle.ring.g-eu { fill: none; stroke: var(--fr); stroke-width: 1.4; }
+circle.full.g-as { fill: var(--as); stroke: var(--panel); stroke-width: 1.5; fill-opacity: .85; }
 circle.ring.g-us { fill: none; stroke: var(--us); stroke-width: 1; stroke-opacity: .55; }
 #nuage circle.pt:hover { stroke: var(--ink); stroke-width: 2; stroke-opacity: 1; }
 .nlegend { gap: 6px; }
@@ -377,3 +378,38 @@ td.q-bad { background: color-mix(in srgb, var(--bad) 12%, transparent); }
 .c-eq2 { background: color-mix(in srgb, var(--c-eq) 60%, #000 0%); background: #1f5c4b; }
 .c-minor { background: #6f9d8f; }
 @media (prefers-color-scheme: dark) { .c-eq2 { background: #1d4d40; } .c-minor { background: #5b8679; } }
+
+/* ---------- Tableau de bord 4 étapes (couleurs d'état réservées : bon / à surveiller / alerte) ---------- */
+.tdb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 900px) { .tdb-grid { grid-template-columns: 1fr; } }
+.tdb-panel svg { width: 100%; height: auto; display: block; }
+.tdb-panel .grid { stroke: var(--line); }
+.tdb-panel .ax { fill: var(--muted); font-size: 10px; } .tdb-panel .ax.t { font-size: 11px; }
+.tdb-panel .guide { stroke: var(--muted); stroke-dasharray: 4 3; }
+.tdb-panel .gl { fill: var(--muted); font-size: 10px; }
+.tdb-panel .iso { fill: none; stroke: var(--muted); stroke-dasharray: 4 3; }
+.tdb-panel .zone { fill: color-mix(in srgb, var(--good) 10%, transparent); }
+circle.dp { stroke: var(--panel); stroke-width: .8; cursor: pointer; }
+.s-green { fill: var(--good); background: var(--good); } .s-orange { fill: var(--c-bfr); background: var(--c-bfr); }
+.s-red { fill: var(--bad); background: var(--bad); } .s-grey { fill: var(--c-other); background: var(--c-other); }
+circle.dp.s-grey { opacity: .35; }
+circle.dp.hot { stroke: var(--ink); stroke-width: 2.5; }
+.cnt .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 3px 0 8px; vertical-align: -1px; }
+.tdb-toggle { display: flex; gap: 8px; align-items: center; margin: 6px 0; font-weight: 600; }
+.tdb-hot { min-height: 26px; font-size: 13px; }
+.pill { display: inline-block; border-radius: 999px; padding: 1px 8px; color: #fff; font-size: 12px; margin: 2px; }
+#nuage circle.dim { fill: var(--c-other); fill-opacity: .18; stroke: none; }
+.sector-chips .chip { font-size: 12px; padding: 3px 9px; }
+
+/* ---------- Graphiques par secteur ---------- */
+.sector-charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.schart h3 { font-size: 13.5px; }
+.bars { display: grid; gap: 4px; }
+.brow { display: grid; grid-template-columns: 112px 1fr 58px; gap: 6px; align-items: center; font-size: 12px; cursor: pointer; }
+.brow:hover .bl { color: var(--accent); }
+.bl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt { position: relative; height: 12px; }
+.b0 { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.bb { position: absolute; top: 0; bottom: 0; background: var(--bar1); border-radius: 2px; }
+.bb.neg { background: var(--bad); }
+.bv { text-align: right; font-variant-numeric: tabular-nums; }

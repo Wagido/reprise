@@ -28,6 +28,7 @@
     </div>
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-view="list" data-in="invest">Sociétés</button>
+      <button role="tab" aria-selected="false" data-view="tdb" data-in="invest">4 étapes</button>
       <button role="tab" aria-selected="false" data-view="pick" data-in="invest">Stock picking</button>
       <button role="tab" aria-selected="false" data-view="sectors" data-in="invest">Secteurs</button>
       <button role="tab" aria-selected="false" data-view="nuages" data-in="invest">Nuages</button>
@@ -40,8 +41,8 @@
 
 <section class="filters" id="filters">
   <input type="search" id="q" placeholder="Nom, ticker, activité…" aria-label="Recherche">
-  <label>Pays
-    <select id="country"><option value="">Tous</option><option value="FR">France</option><option value="US">USA</option></select>
+  <label>Zone
+    <select id="country"><option value="">Toutes zones</option><option value="FR">France</option><option value="US">USA</option></select>
   </label>
   <label>Secteur <select id="sector"><option value="">Tous</option></select></label>
   <label>Exercice <select id="year"></select></label>
@@ -71,6 +72,7 @@
 
   <section id="view-sectors" class="view" hidden>
     <p class="count">Médianes par secteur, sur les sociétés qui passent les filtres (hors secteur).</p>
+    <div id="sectorCharts" class="sector-charts"></div>
     <div class="tablewrap"><table id="sectorTable"></table></div>
   </section>
 
@@ -110,6 +112,7 @@
 
   <section id="view-pick" class="view" hidden><div id="pickOut"></div></section>
   <section id="view-nuages" class="view" hidden><div id="nuageOut"></div></section>
+  <section id="view-tdb" class="view" hidden><div id="tdbOut"></div></section>
 
   <section id="view-lbo" class="view" hidden>
     <p class="count">Reprise à titre personnel : une holding achète la société, financée par ton apport, un prêt d'honneur, un crédit-vendeur et une dette bancaire, remboursée par les dividendes de la cible. Depuis une fiche PME, « Simuler la reprise » remplit la cible automatiquement.</p>
@@ -157,5 +160,6 @@
 <script src="lbo.js"></script>
 <script src="picking.js"></script>
 <script src="nuages.js"></script>
+<script src="tdb.js"></script>
 </body>
 </html>

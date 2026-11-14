@@ -34,7 +34,39 @@ FX = {
     "USD": {2018: 0.847, 2019: 0.893, 2020: 0.877, 2021: 0.846, 2022: 0.951, 2023: 0.925, 2024: 0.924, 2025: 0.886, 2026: 0.87},
     "GBP": {2018: 1.130, 2019: 1.140, 2020: 1.125, 2021: 1.163, 2022: 1.173, 2023: 1.150, 2024: 1.181, 2025: 1.170, 2026: 1.16},
     "CHF": {2018: 0.866, 2019: 0.899, 2020: 0.934, 2021: 0.925, 2022: 0.995, 2023: 1.029, 2024: 1.050, 2025: 1.070, 2026: 1.07},
+    # Taux moyens annuels approximatifs (euros pour une unité).
+    "JPY": {2019: 0.0082, 2020: 0.0082, 2021: 0.0077, 2022: 0.0072, 2023: 0.0066, 2024: 0.0061, 2025: 0.0059, 2026: 0.0058},
+    "TWD": {2019: 0.029, 2020: 0.030, 2021: 0.030, 2022: 0.032, 2023: 0.0297, 2024: 0.0287, 2025: 0.027, 2026: 0.027},
+    "KRW": {2019: 0.00077, 2020: 0.00074, 2021: 0.00074, 2022: 0.00074, 2023: 0.00071, 2024: 0.00068, 2025: 0.00063, 2026: 0.00062},
+    "INR": {2019: 0.0127, 2020: 0.0118, 2021: 0.0114, 2022: 0.0121, 2023: 0.0112, 2024: 0.0111, 2025: 0.0103, 2026: 0.0100},
+    "CNY": {2019: 0.129, 2020: 0.127, 2021: 0.131, 2022: 0.141, 2023: 0.131, 2024: 0.128, 2025: 0.123, 2026: 0.122},
+    "HKD": {2019: 0.114, 2020: 0.113, 2021: 0.109, 2022: 0.121, 2023: 0.118, 2024: 0.118, 2025: 0.114, 2026: 0.112},
+    "DKK": {2019: 0.134, 2020: 0.134, 2021: 0.134, 2022: 0.134, 2023: 0.134, 2024: 0.134, 2025: 0.134, 2026: 0.134},
+    "SEK": {2019: 0.0945, 2020: 0.0954, 2021: 0.0986, 2022: 0.0940, 2023: 0.0872, 2024: 0.0877, 2025: 0.090, 2026: 0.091},
+    "NOK": {2019: 0.1016, 2020: 0.0930, 2021: 0.0983, 2022: 0.0990, 2023: 0.0877, 2024: 0.0858, 2025: 0.086, 2026: 0.086},
+    "PLN": {2019: 0.233, 2020: 0.225, 2021: 0.219, 2022: 0.213, 2023: 0.220, 2024: 0.232, 2025: 0.235, 2026: 0.234},
+    "CAD": {2019: 0.674, 2020: 0.654, 2021: 0.674, 2022: 0.731, 2023: 0.685, 2024: 0.675, 2025: 0.635, 2026: 0.63},
+    "AUD": {2019: 0.621, 2020: 0.604, 2021: 0.635, 2022: 0.660, 2023: 0.614, 2024: 0.611, 2025: 0.575, 2026: 0.57},
+    "BRL": {2019: 0.227, 2020: 0.171, 2021: 0.157, 2022: 0.184, 2023: 0.185, 2024: 0.172, 2025: 0.158, 2026: 0.16},
+    "MXN": {2019: 0.0464, 2020: 0.041, 2021: 0.042, 2022: 0.047, 2023: 0.052, 2024: 0.051, 2025: 0.046, 2026: 0.047},
+    "ZAR": {2019: 0.062, 2020: 0.053, 2021: 0.057, 2022: 0.058, 2023: 0.050, 2024: 0.050, 2025: 0.049, 2026: 0.049},
+    "ILS": {2019: 0.251, 2020: 0.255, 2021: 0.262, 2022: 0.283, 2023: 0.251, 2024: 0.250, 2025: 0.245, 2026: 0.24},
+    "SGD": {2019: 0.655, 2020: 0.636, 2021: 0.629, 2022: 0.690, 2023: 0.688, 2024: 0.690, 2025: 0.665, 2026: 0.66},
+    "ARS": {},
 }
+
+COUNTRY_NAMES = {
+    "FR": "France", "US": "USA", "GB": "Royaume-Uni", "NL": "Pays-Bas", "IT": "Italie", "ES": "Espagne",
+    "BE": "Belgique", "SE": "Suède", "DK": "Danemark", "NO": "Norvège", "FI": "Finlande", "AT": "Autriche",
+    "PT": "Portugal", "PL": "Pologne", "LU": "Luxembourg", "DE": "Allemagne", "CH": "Suisse", "IE": "Irlande",
+    "JP": "Japon", "TW": "Taïwan", "KR": "Corée du Sud", "IN": "Inde", "CN": "Chine", "SG": "Singapour",
+    "AU": "Australie", "CA": "Canada", "BR": "Brésil", "MX": "Mexique", "AR": "Argentine", "ZA": "Afrique du Sud",
+    "IL": "Israël",
+}
+ZONES = {"FR": "FR", "US": "US", "GB": "GB", "JP": "ASIA", "TW": "ASIA", "KR": "ASIA", "IN": "ASIA", "CN": "ASIA",
+         "SG": "ASIA", "AU": "ASIA", "CA": "AM", "BR": "AM", "MX": "AM", "AR": "AM", "ZA": "OTHER", "IL": "OTHER"}
+ZONE_NAMES = {"FR": "France", "EU": "Europe (hors France et R.-U.)", "GB": "Royaume-Uni", "US": "USA",
+              "ASIA": "Asie-Pacifique", "AM": "Amériques (hors USA)", "OTHER": "Autres"}
 
 
 def sic_sector(sic):
@@ -141,6 +173,11 @@ def main():
     us = read_json("raw_us.json", {"companies": []})["companies"]
     prices = read_json("prices.json", {})
     fr = read_json("raw_fr.json", {"companies": []})["companies"]
+    eu = read_json("raw_eu.json", {"companies": []})["companies"]
+    # Groupes étrangers cotés à New York, sauf ceux déjà couverts (comptes US GAAP, France, Europe).
+    known_t = {c.get("ticker") for c in us if c.get("ticker")}
+    intl = [c for c in read_json("raw_intl.json", {"companies": []})["companies"] if c.get("ticker") not in known_t]
+    fr = fr + eu + intl
     fields = [k for k, _, _ in FIELDS]
 
     years = sorted({int(y) for c in us + fr for y in c["years"]})
@@ -150,7 +187,7 @@ def main():
 
     out = []
     for c in us + fr:
-        if c["country"] == "US":
+        if c.get("sic"):
             sector = sic_sector(c.get("sic"))
             sector_from = "SIC"
         else:
@@ -188,7 +225,7 @@ def main():
         if "revenue" not in values:
             continue
         out.append({
-            "id": c["id"], "n": c["name"], "c": c["country"], "t": c.get("ticker"), "x": c.get("exchange"),
+            "id": c["id"], "n": c["name"], "c": c["country"], "z": ZONES.get(c["country"], "EU"), "t": c.get("ticker"), "x": c.get("exchange"),
             "s": sector, "sf": sector_from, "sd": c.get("sector_desc"), "sic": c.get("sic"),
             "cur": c["currency"], "src": c.get("source"), "est": sorted(est),
             "fy": {y: c.get("fy_end", {}).get(str(y)) for y in years[-1:]},
@@ -205,6 +242,8 @@ def main():
         "sectors": SECTORS,
         "fx": {cur: {str(y): r for y, r in rates.items()} for cur, rates in FX.items()},
         "price_date": {"US": prices.get("date_us"), "FR": prices.get("date_fr")},
+        "countries": COUNTRY_NAMES, "zones": ZONE_NAMES,
+        "zone_counts": {z: sum(1 for c in out if c["z"] == z) for z in ZONE_NAMES},
         "counts": {"US": sum(1 for c in out if c["c"] == "US"), "FR": sum(1 for c in out if c["c"] == "FR")},
     }
     path = write_json("companies.json", {"meta": meta, "companies": out})

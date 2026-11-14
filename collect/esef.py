@@ -22,6 +22,9 @@ TAGS = all_tags(IFRS)
 DESC = "ifrs-full:DescriptionOfNatureOfEntitysOperationsAndPrincipalActivities"
 BASE_DIMS = {"concept", "entity", "period", "unit", "language"}
 
+# Pays européens présents sur filings.xbrl.org (l'Allemagne, l'Irlande et la Suisse n'y sont pas).
+EUROPE = ["GB", "NL", "IT", "ES", "BE", "SE", "DK", "NO", "FI", "AT", "PT", "PL", "LU"]
+
 
 def list_filings(country, log):
     filings, entities = [], {}
@@ -114,7 +117,7 @@ def parse_filing(doc):
     return by_year, units.most_common(1)[0][0], desc, own, ends
 
 
-def collect(country="FR", limit=None, log=print):
+def collect(country="FR", limit=None, log=print, per_entity=None, workers=1):
     filings, names = list_filings(country, log)
     # Un rapport par société et par date de clôture : le plus récent traité.
     best = {}
@@ -123,17 +126,32 @@ def collect(country="FR", limit=None, log=print):
         if key not in best or (f.get("processed") or "") > (best[key].get("processed") or ""):
             best[key] = f
     chosen = sorted(best.values(), key=lambda f: (f["lei"], f["period_end"]))
+    # Au plus `per_entity` rapports par société (les plus récents) : chaque rapport contient aussi
+    # l'exercice précédent, 3 rapports donnent donc 4 à 5 années.
+    if per_entity:
+        by_lei = {}
+        for f in chosen:
+            by_lei.setdefault(f["lei"], []).append(f)
+        chosen = [f for fs in by_lei.values() for f in fs[-per_entity:]]
     if limit:
         chosen = chosen[:limit]
 
-    per_lei = {}
-    for i, f in enumerate(chosen, 1):
+    # Téléchargement en parallèle (4 à la fois), gardé en cache : les relances sont rapides.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def fetch(f):
         try:
-            doc = get_json(BASE + quote(f["json_url"]), cache_name=f"esef/json/{f['fxo_id']}.json.gz",
-                           min_interval=0.3)
+            return get_json(BASE + quote(f["json_url"]), cache_name=f"esef/json/{f['fxo_id']}.json.gz", min_interval=0.05)
         except Exception as e:  # un rapport illisible ne doit pas bloquer la collecte
             log(f"  ignoré {f['fxo_id']} : {e}")
-            continue
+            return None
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        docs = pool.map(fetch, chosen)
+        docs = list(docs)
+
+    per_lei = {}
+    for i, (f, doc) in enumerate(zip(chosen, docs), 1):
         if not doc:
             continue
         by_year, cur, desc, own, ends = parse_filing(doc)
@@ -207,9 +225,20 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--country", default="FR")
     p.add_argument("--limit", type=int, default=None, help="nombre maximal de rapports (test rapide)")
+    p.add_argument("--europe", action="store_true", help="tous les pays européens couverts (hors France)")
     a = p.parse_args()
-    companies = collect(a.country, a.limit, log=lambda m: print(m, file=sys.stderr, flush=True))
-    write_json(f"raw_{a.country.lower()}.json", {"companies": companies})
+    lg = lambda m: print(m, file=sys.stderr, flush=True)
+    if a.europe:
+        out = []
+        for cc in EUROPE:
+            try:
+                out += collect(cc, a.limit, log=lg, per_entity=2, workers=4)
+            except Exception as ex:   # un pays en échec ne bloque pas les autres
+                lg(f"{cc} : échec ({ex})")
+        write_json("raw_eu.json", {"companies": out})
+    else:
+        companies = collect(a.country, a.limit, log=lg)
+        write_json(f"raw_{a.country.lower()}.json", {"companies": companies})
 
 
 if __name__ == "__main__":

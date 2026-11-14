@@ -20,11 +20,13 @@ const Nuages = (() => {
     "213800WFQ334R8UXUG83",
   ]);
 
+  // Couleur = zone (trois teintes validées entre elles), plein = grand indice, cercle = autres.
   const GROUPS = [
     { k: "cac", label: "CAC 40", c: "--fr", fill: true },
-    { k: "fr", label: "Autres sociétés françaises", c: "--fr", fill: false },
+    { k: "eu", label: "Europe (autres, dont France et R.-U.)", c: "--fr", fill: false },
     { k: "sp", label: "≈ S&P 500 (500 plus grosses capitalisations US)", c: "--us", fill: true },
     { k: "us", label: "Autres sociétés américaines", c: "--us", fill: false },
+    { k: "as", label: "Asie, Amériques et reste du monde", c: "--as", fill: true },
   ];
 
   const symlog = (v) => Math.sign(v) * Math.log10(1 + Math.abs(v));
@@ -51,7 +53,7 @@ const Nuages = (() => {
       y: { key: "roce", label: "ROCE après IS", type: "lin", min: -0.2, max: 0.6, fmt: (v) => nf0.format(v * 100) + " %" } },
   };
 
-  const st = { preset: "taille", hidden: new Set(["us"]) };   // les 3 000 « autres US » masquées par défaut
+  const st = { preset: "taille", hidden: new Set(["us"]), focus: "" };   // focus : secteur mis en avant   // les 3 000 « autres US » masquées par défaut
   try { Object.assign(st, { preset: localStorage.getItem("reprise.nuage") || "taille" }); } catch (e) { /* ignoré */ }
 
   function points() {
@@ -59,13 +61,15 @@ const Nuages = (() => {
     const y = state.meta.years[i];
     const rows = compute(true);
     // ≈ S&P 500 : les 500 plus grosses capitalisations américaines disponibles.
-    const us = rows.filter((r) => r.c.c === "US").map((r) => ({ r, m: Analyse.figures(r.c, i).mcap })).filter((x) => ok(x.m))
+    const us = rows.filter((r) => (r.c.z || r.c.c) === "US").map((r) => ({ r, m: Analyse.figures(r.c, i).mcap })).filter((x) => ok(x.m))
       .sort((a, b) => b.m - a.m).slice(0, 500);
     const sp = new Set(us.map((x) => x.r.c.id));
     return rows.map((r) => {
       const f = Analyse.figures(r.c, i);
       const rate = fx(r.c, y) || 1;
-      const g = r.c.c === "FR" ? (CAC40.has(r.c.id.slice(3)) ? "cac" : "fr") : (sp.has(r.c.id) ? "sp" : "us");
+      const z = r.c.z || r.c.c;
+      const g = z === "US" ? (sp.has(r.c.id) ? "sp" : "us") : z === "FR" && CAC40.has(r.c.id.slice(3)) ? "cac"
+        : ["FR", "EU", "GB"].includes(z) ? "eu" : "as";
       return { c: r.c, g, rev: r.m.rev, ni: r.m.ni, mcapE: ok(f.mcap) ? f.mcap * rate : null,
         roce: f.roce, evEbitda: f.evEbitda, growth: f.growth, ebitdaMargin: f.ebitdaMargin, ndEbitda: f.ndEbitda };
     });
@@ -118,8 +122,9 @@ const Nuages = (() => {
       }
     }
     // Points : d'abord les « autres » (cercles), puis les grands indices par-dessus.
-    const order = { us: 0, fr: 1, sp: 2, cac: 3 };
-    const vis = pts.filter((p) => !st.hidden.has(p.g)).sort((a, b) => order[a.g] - order[b.g]);
+    const order = { us: 0, eu: 1, as: 2, sp: 3, cac: 4 };
+    const vis = pts.filter((p) => !st.hidden.has(p.g)).sort((a, b) =>
+      ((st.focus ? (a.c.s === st.focus) - (b.c.s === st.focus) : 0)) || order[a.g] - order[b.g]);
     const size = (p) => (ok(p.mcapE) && p.mcapE > 0 ? 2.5 + Math.min(9, Math.sqrt(p.mcapE / 2000)) : 3);
     let marks = "";
     state.nuageTips = [];
@@ -127,11 +132,12 @@ const Nuages = (() => {
       const gr = GROUPS.find((x) => x.k === p.g);
       state.nuageTips.push(p);
       const x = sx(p[pr.x.key]), y = sy(p[pr.y.key]), r = size(p);
-      marks += `<circle class="pt ${gr.fill ? "full" : "ring"} g-${p.g}" data-k="${k}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"/>`;
+      const dim = st.focus && p.c.s !== st.focus;
+      marks += `<circle class="pt ${dim ? "dim" : `${gr.fill ? "full" : "ring"} g-${p.g}`}" data-k="${k}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"/>`;
     });
     // Étiquettes directes : les plus grosses capitalisations visibles des grands indices (sans chevauchement).
     const placed = [];
-    const big = vis.filter((p) => p.g === "cac" || p.g === "sp").sort((a, b) => (b.mcapE || 0) - (a.mcapE || 0)).slice(0, 14);
+    const big = vis.filter((p) => (st.focus ? p.c.s === st.focus : p.g === "cac" || p.g === "sp" || p.g === "as")).sort((a, b) => (b.mcapE || 0) - (a.mcapE || 0)).slice(0, 14);
     for (const p of big) {
       const x = sx(p[pr.x.key]) + size(p) + 3, y = sy(p[pr.y.key]) + 4, name = p.c.t || p.c.n.split(" ")[0];
       const box = [x, y - 11, x + name.length * 6.5, y + 2];
@@ -145,6 +151,9 @@ const Nuages = (() => {
       <div class="card">
         <div class="chips">${Object.entries(PRESETS).map(([k, v]) => `<button class="chip" data-preset="${k}" aria-pressed="${k === st.preset}">${v.name}</button>`).join("")}</div>
         <p class="note">${esc(pr.desc)}</p>
+        <div class="chips sector-chips"><span class="note">Mettre en avant un secteur :</span>
+          <button class="chip" data-focus="" aria-pressed="${!st.focus}">aucun</button>
+          ${Object.entries(state.meta.sectors).filter(([k]) => k !== "autre").map(([k, v]) => `<button class="chip" data-focus="${k}" aria-pressed="${st.focus === k}">${esc(v.split(/[,(&]/)[0].trim())}</button>`).join("")}</div>
         <div class="legend nlegend">${GROUPS.map((gr) => `<button class="lg" data-group="${gr.k}" aria-pressed="${!st.hidden.has(gr.k)}">
           <svg width="14" height="14"><circle cx="7" cy="7" r="5" class="${gr.fill ? "full" : "ring"} g-${gr.k}"/></svg>${esc(gr.label)} (${nf0.format(counts[gr.k])})</button>`).join("")}</div>
         <div class="scatter-wrap"><svg id="nuage" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(pr.name)}">${g}${marks}</svg><div id="ntip" class="tip" hidden></div></div>
@@ -162,6 +171,8 @@ const Nuages = (() => {
     box.addEventListener("click", (e) => {
       const b = e.target.closest("[data-preset]");
       if (b) { st.preset = b.dataset.preset; try { localStorage.setItem("reprise.nuage", st.preset); } catch (er) { /* ignoré */ } render(); return; }
+      const fc = e.target.closest("[data-focus]");
+      if (fc) { st.focus = fc.dataset.focus; render(); return; }
       const lg = e.target.closest("[data-group]");
       if (lg) { const k = lg.dataset.group; if (st.hidden.has(k)) st.hidden.delete(k); else st.hidden.add(k); render(); return; }
       const pt = e.target.closest("circle.pt");

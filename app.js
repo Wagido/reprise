@@ -162,7 +162,7 @@ function compute(ignoreSector = false) {
   const i = state.meta.years.indexOf(f.year);
   const out = [];
   for (const c of state.companies) {
-    if (f.country && c.c !== f.country) continue;
+    if (f.country && (c.z || c.c) !== f.country) continue;
     if (!ignoreSector && f.sector && c.s !== f.sector) continue;
     if (f.q) {
       const hay = c._hay || (c._hay = `${c.n} ${c.t || ""} ${c.sd || ""}`.toLowerCase());
@@ -304,6 +304,27 @@ function renderSectors() {
     ["ROCE", (ms) => pct(median(ms.map((m) => m.roce)), true)],
     ["BFR", (ms) => days(median(ms.map((m) => m.bfrDays)))],
   ];
+  // Petits graphiques en barres, un par indicateur, secteurs triés (repères du plan en 4 étapes).
+  const short = (k) => (state.meta.sectors[k] || k).split(/[,(&]/)[0].trim();
+  const charts = [
+    ["1. EBE en % du CA", (ms) => median(ms.map((m) => m.ebitdaMargin)), (v) => nf0.format(v * 100) + " %", "La marge que laisse le métier."],
+    ["1. Croissance du CA (par an, 3 ans)", (ms) => median(ms.map((m) => m.growth)), (v) => nf1.format(v * 100) + " %", "Secteurs en expansion ou à maturité."],
+    ["2. BFR en jours de CA", (ms) => median(ms.map((m) => m.bfrDays)), (v) => nf0.format(v) + " j", "Le poids du cycle d'exploitation : négatif, il finance la croissance."],
+    ["2. Investissements en % du CA", (ms) => median(ms.map((m) => (ok(m.capex) && ok(m.rev) && m.rev > 0 ? m.capex / m.rev : null))), (v) => nf1.format(v * 100) + " %", "L'intensité capitalistique du métier."],
+    ["3. Dette nette / EBE", (ms) => median(ms.map((m) => m.leverage)), (v) => nf1.format(v) + "×", "Repère : 3× au plus."],
+    ["4. Rentabilité économique (ROCE avant IS)", (ms) => median(ms.map((m) => m.roce)), (v) => nf0.format(v * 100) + " %", "À comparer au coût du capital."],
+  ];
+  $("sectorCharts").innerHTML = charts.map(([title, fn, fmt, note]) => {
+    const rowsC = keys.filter((k) => by[k].length >= 5).map((k) => [k, fn(by[k])]).filter(([, v]) => ok(v)).sort((x, y) => y[1] - x[1]);
+    if (!rowsC.length) return "";
+    const lo = Math.min(0, ...rowsC.map((r) => r[1])), hi = Math.max(0, ...rowsC.map((r) => r[1]));
+    const span = hi - lo || 1, x = (v) => (v - lo) / span * 100;
+    return `<div class="card schart"><h3>${title}</h3><div class="bars">${rowsC.map(([k, v]) => `
+      <div class="brow" data-sector="${k}"><span class="bl">${esc(short(k))}</span>
+        <span class="bt"><span class="b0" style="left:${x(0)}%"></span><span class="bb${v < 0 ? " neg" : ""}" style="left:${x(Math.min(0, v))}%;width:${Math.max(0.5, Math.abs(x(v) - x(0)))}%"></span></span>
+        <span class="bv">${fmt(v)}</span></div>`).join("")}</div><p class="note">${note}</p></div>`;
+  }).join("");
+
   $("sectorTable").innerHTML =
     `<thead><tr><th class="l">Secteur</th>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>` +
     keys.map((k) => `<tr data-sector="${k}"><td class="l">${esc(state.meta.sectors[k])}</td>${cols.map((c) => `<td>${c[1](by[k])}</td>`).join("")}</tr>`).join("") +
@@ -493,8 +514,8 @@ function openDetail(c, yearIdx, tab) {
   state.detailTab = tab;
   const m = metrics(c, i);
   const raw = (field) => (_, j) => val(c, field, j, true);
-  const where = [c.c === "US" ? "USA" : "France", c.x, c.t].filter(Boolean).join(" · ");
-  const sector = `${state.meta.sectors[c.s]}${c.sf === "estimé" ? " (estimé)" : c.c === "US" && c.sd ? " — " + c.sd : ""}`;
+  const where = [(state.meta.countries || {})[c.c] || c.c, c.x, c.t].filter(Boolean).join(" · ");
+  const sector = `${state.meta.sectors[c.s]}${c.sf === "estimé" ? " (estimé)" : c.sf === "SIC" && c.sd ? " — " + c.sd : ""}`;
   const row = state.rows.find((r) => r.c === c);
   const avail = ys.map((y, j) => [y, j]).filter(([, j]) => ok(val(c, "revenue", j, true)));
   const chips = avail.map(([y, j]) => `<button class="chip" data-y="${j}" aria-pressed="${j === i}">${y}</button>`).join("");
@@ -534,7 +555,7 @@ function openDetail(c, yearIdx, tab) {
     <h2>${esc(c.n)}</h2>
     <p class="meta">${esc(where)} · ${esc(sector)} · comptes en ${esc(c.cur)}
       ${c.src ? ` · <a href="${esc(c.src)}" target="_blank" rel="noopener">source officielle</a>` : ""}</p>
-    ${c.c === "FR" && c.sd ? `<p class="desc">${esc(c.sd)}</p>` : ""}
+    ${c.sf !== "SIC" && c.sd ? `<p class="desc">${esc(c.sd)}</p>` : ""}
     ${c.est && c.est.length ? `<p class="desc est">≈ Estimé à partir d'étiquettes propres à la société (à vérifier dans la source) :
       ${c.est.map((f) => esc((state.meta.fields[f] || {}).label || f).toLowerCase()).join(", ")}.</p>` : ""}
     <div class="kpis">
@@ -619,6 +640,7 @@ function render() {
   else if (state.view === "compare") renderCompare();
   else if (state.view === "pick") Picking.render();
   else if (state.view === "nuages") Nuages.render();
+  else if (state.view === "tdb") TDB.render();
   saveFilters();
 }
 
@@ -628,7 +650,7 @@ function onFilter() {
   timer = setTimeout(() => { state.shown = PAGE; render(); }, 150);
 }
 
-const SPACE_OF = { list: "invest", pick: "invest", nuages: "invest", sectors: "invest", compare: "invest", pme: "reprise", lbo: "reprise", help: "method" };
+const SPACE_OF = { list: "invest", pick: "invest", nuages: "invest", tdb: "invest", sectors: "invest", compare: "invest", pme: "reprise", lbo: "reprise", help: "method" };
 const lastView = { invest: "list", reprise: "pme", method: "help" };
 
 function setView(v) {
@@ -640,13 +662,14 @@ function setView(v) {
     b.hidden = b.dataset.in !== space;
     b.setAttribute("aria-selected", String(b.dataset.view === v));
   });
-  for (const s of ["list", "sectors", "compare", "pick", "nuages", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  for (const s of ["list", "sectors", "compare", "pick", "nuages", "tdb", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
   $("filters").hidden = space !== "invest";
   document.body.dataset.space = space;
   if (v === "pme") PME.show();
   if (v === "lbo") LBO.mount();
   if (v === "pick") Picking.mount();
   if (v === "nuages") Nuages.mount();
+  if (v === "tdb") TDB.mount();
   try { localStorage.setItem("reprise.view", v); } catch (e) { /* ignoré */ }
   render();
 }
@@ -680,6 +703,12 @@ function bind() {
   $("tbody").onclick = (e) => {
     const tr = e.target.closest("tr");
     if (tr) openDetail(state.rows[Number(tr.dataset.k)].c);
+  };
+  $("sectorCharts").onclick = (e) => {
+    const r = e.target.closest("[data-sector]");
+    if (!r) return;
+    $("sector").value = r.dataset.sector;
+    setView("list");
   };
   $("sectorTable").onclick = (e) => {
     const tr = e.target.closest("tr[data-sector]");
@@ -717,7 +746,11 @@ async function init() {
   }
   const { meta } = state;
   const date = new Date(meta.generated).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-  $("dataInfo").textContent = `${nf0.format(meta.counts.FR)} sociétés françaises, ${nf0.format(meta.counts.US)} américaines · données du ${date}`;
+  const zc = meta.zone_counts || { FR: meta.counts.FR, US: meta.counts.US };
+  const total = Object.values(zc).reduce((x, y) => x + y, 0);
+  $("dataInfo").textContent = `${nf0.format(total)} sociétés cotées (France ${nf0.format(zc.FR || 0)}, USA ${nf0.format(zc.US || 0)}, reste du monde ${nf0.format(total - (zc.FR || 0) - (zc.US || 0))}) · données du ${date}`;
+  if (meta.zones) $("country").innerHTML = `<option value="">Toutes zones</option>` +
+    Object.entries(meta.zones).filter(([k]) => zc[k]).map(([k, v]) => `<option value="${k}">${esc(v)} (${nf0.format(zc[k])})</option>`).join("");
   $("methodPlan").innerHTML = Analyse.methodHtml;
   $("sector").innerHTML += Object.entries(meta.sectors).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   $("year").innerHTML = [...meta.years].reverse().map((y) => `<option>${y}</option>`).join("");

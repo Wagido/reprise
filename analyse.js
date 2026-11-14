@@ -210,7 +210,7 @@ const Analyse = (() => {
       ] },
     ], 300, !f.debtKnown ? "Dette financière non publiée sous une étiquette standard : elle est comptée dans « autres passifs »." : "");
     return card("Bilan économique", `M ${cur}`, html,
-      `${c && c.ff ? `Flottant : ${nf0.format(c.ff * 100)} % du capital est détenu par le public ; le reste par les dirigeants, administrateurs et actionnaires de plus de 10 % (déclaration à la SEC, rapportée à la capitalisation à la même date). Le flottant ne change pas la valeur des capitaux propres : il mesure la liquidité du titre et la possibilité d'une prise de contrôle (un flottant faible signale un actionnaire de référence qui décide). ` : c && c.c === "FR" ? "Flottant non disponible pour les sociétés françaises (pas de source publique gratuite). " : ""}Actif économique = immobilisations + BFR ${M(f.ae)}. Il est financé par les capitaux propres et la dette nette.
+      `${c && c.ff ? `Flottant : ${nf0.format(c.ff * 100)} % du capital est détenu par le public ; le reste par les dirigeants, administrateurs et actionnaires de plus de 10 % (déclaration à la SEC, rapportée à la capitalisation à la même date). Le flottant ne change pas la valeur des capitaux propres : il mesure la liquidité du titre et la possibilité d'une prise de contrôle (un flottant faible signale un actionnaire de référence qui décide). ` : c && c.c !== "US" ? "Flottant non disponible hors USA (pas de source publique gratuite). " : ""}Actif économique = immobilisations + BFR ${M(f.ae)}. Il est financé par les capitaux propres et la dette nette.
        BFR = ${M(f.bfr)}, soit ${ok(f.bfrDays) ? nf0.format(f.bfrDays) + " jours de CA" : "—"}.`);
   }
 
@@ -903,7 +903,7 @@ const Analyse = (() => {
         <div>${light(val[0])}<b>Du point de vue des actionnaires</b> <span>${val[1]} ${ok(f.roe) ? `Rentabilité des capitaux propres ${P(f.roe)}${ok(f.roce) && ok(f.roe) ? `, dont ${f.roe > f.roce ? "un effet de levier positif" : "un effet de levier négatif ou nul"}` : ""}.` : ""}</span></div>
         <div>${light(solv[0])}<b>Du point de vue des prêteurs</b> <span>${solv[1]} ${ok(f.liqGen) ? `Liquidité générale ${nf1.format(f.liqGen)}.` : ""}</span></div>
       </div>
-      <p class="note">Comparaison avec ${st.n} sociétés du secteur « ${esc(state.meta.sectors[c.s])} » (France et USA). Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
+      <p class="note">Comparaison avec ${st.n} sociétés cotées du secteur « ${esc(state.meta.sectors[c.s])} », toutes zones. Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
       <details class="method"><summary>Le plan d'analyse en 4 étapes</summary>${METHOD_HTML}</details></div>`;
   }
 
@@ -947,10 +947,36 @@ const Analyse = (() => {
     params[name] = Number.isFinite(v) && v > 0 ? v : (name === "mult" ? null : params[name]);
     saveParams();
   }
+  // Verdicts des 4 étapes (mêmes règles que la synthèse de la fiche), pour le tableau de bord.
+  function stepColors(c, i) {
+    const f = figures(c, i), st = sectorStats(c.s, i);
+    const med = st.ebitdaMargin && st.ebitdaMargin.median;
+    const prev = figures(c, i - 2), f0 = figures(c, i - 3);
+    const trend = ok(f.ebitdaMargin) && ok(prev.ebitdaMargin) ? f.ebitdaMargin - prev.ebitdaMargin : null;
+    let s1 = "grey";
+    if (ok(f.ebit) && f.ebit < 0) s1 = "red";
+    else if (ok(f.ebitdaMargin)) {
+      const above = ok(med) ? f.ebitdaMargin >= med : true;
+      s1 = above && (!ok(trend) || trend > -0.01) ? "green" : !above && ok(trend) && trend < -0.01 ? "red" : "orange";
+    }
+    const dBfr = ok(f.bfrDays) && ok(f0.bfrDays) ? f.bfrDays - f0.bfrDays : null;
+    let s2 = "grey";
+    if (ok(f.bfrDays) || ok(f.capexDa)) {
+      s2 = ok(dBfr) && dBfr > 10 ? "orange" : "green";
+      if (ok(f.rotation) && st.rotation && ok(st.rotation.median) && f.rotation < st.rotation.median * 0.7) s2 = "orange";
+    }
+    let s3 = "grey";
+    if (ok(f.netDebt) && f.netDebt <= 0) s3 = "green";
+    else if (ok(f.ndEbitda)) s3 = f.ndEbitda <= 3 && (!ok(f.coverage) || f.coverage >= 3) ? "green" : f.ndEbitda > 4 || (ok(f.coverage) && f.coverage < 1.5) ? "red" : "orange";
+    const w = params.wacc / 100;
+    const s4 = !ok(f.roce) ? "grey" : f.roce >= w + 0.02 ? "green" : f.roce >= w - 0.01 ? "orange" : "red";
+    return { f, s: [s1, s2, s3, s4] };
+  }
+
   function sectorMedians(sector, i) {
     const st = sectorStats(sector, i);
     return Object.fromEntries(BENCH.map((k) => [k, st[k] ? st[k].median : null]));
   }
 
-  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, methodHtml: METHOD_HTML, params, setParam };
+  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, methodHtml: METHOD_HTML, params, setParam };
 })();
