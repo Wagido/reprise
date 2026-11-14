@@ -44,6 +44,7 @@ FIELDS = [
     ("retained_earnings", "I", "Réserves (bénéfices accumulés)"),
     ("noncurrent_liabilities", "I", "Passifs à plus d'un an"),
     ("cash", "I", "Trésorerie"),
+    ("st_invest", "I", "Placements financiers à court terme"),
     ("debt_lt", "I", "Dettes financières à long terme"),
     ("debt_st", "I", "Dettes financières à court terme"),
     ("debt_total", "I", "Dettes financières (total publié)"),
@@ -123,6 +124,7 @@ US_GAAP = {
         ["CashAndCashEquivalentsAtCarryingValue"],
         ["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"],
     ],
+    "st_invest": [["ShortTermInvestments"], ["MarketableSecuritiesCurrent"], ["AvailableForSaleSecuritiesDebtSecuritiesCurrent"]],
     "debt_lt": [
         ["LongTermDebtNoncurrent"],
         ["LongTermDebtAndCapitalLeaseObligations"],
@@ -203,6 +205,7 @@ IFRS = {
     "total_assets": [["Assets"]],
     "equity": [["EquityAttributableToOwnersOfParent"], ["Equity"]],
     "cash": [["CashAndCashEquivalents"]],
+    "st_invest": [["CurrentInvestments"], ["OtherCurrentFinancialAssets"]],
     "debt_lt": [["NoncurrentPortionOfNoncurrentBorrowings"], ["LongtermBorrowings"]],
     "debt_st": [
         ["CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings"],

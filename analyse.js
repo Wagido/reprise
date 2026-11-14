@@ -30,7 +30,9 @@ const Analyse = (() => {
     // Dette long terme : publiée, ou à défaut le total publié moins la part courte.
     const debtLT = ok(dlt) ? dlt : ok(dtot) ? Math.max(0, dtot - (dst || 0)) : 0;
     const debtST = ok(dst) ? dst : 0;
-    const netDebt = ok(cash) ? debtLT + debtST - cash : null;
+    // Dette nette (Vernimmen) : dettes financières (location comprise quand la société l'inclut dans ses emprunts)
+    // − trésorerie − placements financiers à court terme.
+    const netDebt = ok(cash) ? debtLT + debtST - cash - (g("st_invest") || 0) : null;
 
     // Bilan économique.
     const bfr = ok(CA) && ok(cash) && ok(CL) ? (CA - cash) - (CL - debtST) : null;
@@ -53,8 +55,19 @@ const Analyse = (() => {
     // Rentabilité.
     const ropat = ok(ebit) ? ebit * (1 - tUsed) : null;           // résultat d'exploitation après IS
     const margin = ok(ropat) && ok(rev) && rev > 0 ? ropat / rev : null;
-    const rotation = ok(rev) && ok(ae) && ae > 0 ? rev / ae : null;
-    const roce = ok(ropat) && ok(ae) && ae > 0 ? ropat / ae : null;
+    // Capitaux employés = capitaux propres + dette nette (passif du bilan économique), en moyenne sur l'exercice
+    // (ouverture et clôture), comme dans les rentabilités publiées (ROACE). À défaut, l'actif économique calculé à l'actif.
+    const ceAt = (j) => {
+      const e = ok(g("equity_total", j)) ? g("equity_total", j) : g("equity", j), ch = g("cash", j);
+      if (!ok(e) || !ok(ch)) return null;
+      const lt = ok(g("debt_lt", j)) ? g("debt_lt", j) : ok(g("debt_total", j)) ? Math.max(0, g("debt_total", j) - (g("debt_st", j) || 0)) : 0;
+      const v = e + lt + (g("debt_st", j) || 0) - ch - (g("st_invest", j) || 0);
+      return v > 0 ? v : null;
+    };
+    const ce1 = ceAt(i), ce0 = ceAt(i - 1);
+    const ceAvg = ok(ce1) ? (ok(ce0) ? (ce0 + ce1) / 2 : ce1) : ok(ae) && ae > 0 ? ae : null;
+    const rotation = ok(rev) && ok(ceAvg) && rev > 0 ? rev / ceAvg : null;
+    const roce = ok(ropat) && ok(ceAvg) ? ropat / ceAvg : null;
     const interest = g("interest");
     const iCost = ok(interest) && ok(netDebt) && netDebt > 0 ? interest * (1 - tUsed) / netDebt : null;
     const de = ok(netDebt) && ok(eq) && eq > 0 ? netDebt / eq : null;
@@ -69,7 +82,7 @@ const Analyse = (() => {
       cfo: g("cfo"), capex: g("capex"), cfi: g("cfi"), cff: g("cff"), acq: g("acquisitions"),
       div: g("dividends"), buyback: g("buybacks"), issue: g("share_issue"),
       debtIn: g("debt_issued"), debtOut: g("debt_repaid"),
-      ropat, margin, rotation, roce, iCost, de, roeTheo, roe, interest,
+      ropat, margin, rotation, roce, ce: ce1, ceAvg, iCost, de, roeTheo, roe, interest,
       bfrDays: ok(bfr) && ok(rev) && rev > 0 ? bfr / rev * 365 : null,
       recvDays: ok(g("receivables")) && ok(rev) && rev > 0 ? g("receivables") / rev * 365 : null,
       invDays: ok(g("inventory")) && ok(rev) && rev > 0 ? g("inventory") / rev * 365 : null,
@@ -91,7 +104,14 @@ const Analyse = (() => {
         // on garde alors la valeur déclarée.
         const fl = (c.v.market_cap || []).filter(ok);
         const lastFloat = fl.length ? fl[fl.length - 1] : null;
-        const live = c.px && c.px[0] && c.px[1] ? c.px[0] * c.px[1] / 1e6 : null;
+        let live = c.px && c.px[0] && c.px[1] ? c.px[0] * c.px[1] / 1e6 : null;
+        // Le cours est en dollars (USA) ou en euros (Paris) : conversion dans la devise des comptes (Total publie en dollars).
+        const pxCur = c.c === "US" ? "USD" : "EUR";
+        if (ok(live) && pxCur !== c.cur) {
+          const toEur = (cur) => (cur === "EUR" ? 1 : state.meta.fx[cur] ? Object.values(state.meta.fx[cur]).pop() : null);
+          const a1 = toEur(pxCur), b1 = toEur(c.cur);
+          live = a1 && b1 ? live * a1 / b1 : null;
+        }
         // Cohérence : entre 0,3× et 3× la capitalisation déclarée ; sans déclaration, au plus 50× le CA.
         const rv = (c.v.revenue || []).filter(ok), lastRev = rv.length ? rv[rv.length - 1] : null;
         const sane = ok(live) && (ok(lastFloat) ? live >= 0.3 * lastFloat && live <= 3 * lastFloat
@@ -106,7 +126,7 @@ const Analyse = (() => {
       liqRed: ok(CA) && ok(CL) && CL > 0 ? (CA - (g("inventory") || 0)) / CL : null,
       liqImm: ok(cash) && ok(CL) && CL > 0 ? cash / CL : null,
       // Fiche 4 : intensité capitalistique (inverse de la rotation) et levier financier.
-      intensity: ok(ae) && ok(rev) && rev > 0 ? ae / rev : null,
+      intensity: ok(ceAvg) && ok(rev) && rev > 0 ? ceAvg / rev : null,
       // Altman Z'' (1995, version sans cours de Bourse) :
       // 6,56 × BFR global / actif + 3,26 × réserves / actif + 6,72 × EBIT / actif + 1,05 × capitaux propres / dettes.
       zScore: (() => {
@@ -157,7 +177,7 @@ const Analyse = (() => {
     f.rates = R;
     f.k = rf + ba * prm;
     f.spread = ok(f.roce) ? f.roce - f.k : null;
-    f.eva = ok(f.spread) && ok(f.ae) && f.ae > 0 ? f.spread * f.ae : null;
+    f.eva = ok(f.spread) && ok(f.ceAvg) ? f.spread * f.ceAvg : null;
     f.vaeTh = ok(f.roce) && f.k > 0 ? f.roce / f.k : null;           // VE / actif économique théorique, sans croissance
     // Coût des fonds propres : bêta réendetté avec la dette nette / capitalisation (ou / capitaux propres comptables).
     const de = ok(f.netDebt) ? Math.max(0, f.netDebt) / (ok(m) && m > 0 ? m : ok(f.eqGroup) && f.eqGroup > 0 ? f.eqGroup : NaN) : null;
@@ -166,8 +186,8 @@ const Analyse = (() => {
     f.kE = rf + f.betaE * prm;
     f.roeSpread = ok(f.roe) ? f.roe - f.kE : null;
     if (ok(m) && m > 0) {
-      f.vae = ok(f.ev) && ok(f.ae) && f.ae > 0 ? f.ev / f.ae : null;
-      f.mva = ok(f.ev) && ok(f.ae) ? f.ev - f.ae : null;
+      f.vae = ok(f.ev) && ok(f.ceAvg) ? f.ev / f.ceAvg : null;
+      f.mva = ok(f.ev) && ok(f.ceAvg) ? f.ev - f.ceAvg : null;
       f.pbr = ok(f.eqGroup) && f.eqGroup > 0 ? m / f.eqGroup : null;
     }
     // Croissance soutenable (autofinancée) : ROE × (1 − taux de distribution).
@@ -399,7 +419,8 @@ const Analyse = (() => {
     if (idx.length < 2) return "";
     const rows = [
       ["Chiffre d'affaires", (f) => M(f.rev)],
-      ["Actif économique", (f) => M(f.ae)],
+      ["Actif économique (immobilisations + BFR)", (f) => M(f.ae)],
+      ["Capitaux employés moyens (CP + dette nette)", (f) => M(f.ceAvg)],
       ["dont BFR", (f) => M(f.bfr)],
       ["BFR en jours de CA", (f) => (ok(f.bfrDays) ? nf0.format(f.bfrDays) + " j" : "—")],
       ["Fonds de roulement", (f) => M(f.fr)],
@@ -793,7 +814,7 @@ const Analyse = (() => {
         ${kpi("ROCE après IS", P(f.roce), bench(st, "roce", f.roce, P))}
         ${kpi("Coût du capital (CMPC)", P(f.k), `<small class="bench">${nf1.format(f.rates.rf)} % + bêta d'actif ${d2(f.betaA)} × ${nf1.format(f.rates.prm)} %</small>`)}
         ${kpi("ROCE − coût du capital", sg(f.spread))}
-        ${kpi(`Valeur créée ${state.meta.years[i]} (M ${cur})`, `<span class="${ok(f.eva) ? (f.eva >= 0 ? "pos" : "neg") : ""}">${M(f.eva)}</span>`, `<small class="bench">(ROCE − CMPC) × actif économique</small>`)}
+        ${kpi(`Valeur créée ${state.meta.years[i]} (M ${cur})`, `<span class="${ok(f.eva) ? (f.eva >= 0 ? "pos" : "neg") : ""}">${M(f.eva)}</span>`, `<small class="bench">(ROCE − CMPC) × capitaux employés</small>`)}
         ${kpi("ROE", P(f.roe), bench(st, "roe", f.roe, P))}
         ${kpi("Coût des fonds propres", P(f.kE), `<small class="bench">bêta des actions ${d2(f.betaE)} (réendetté)</small>`)}
         ${kpi("ROE − coût des fonds propres", sg(f.roeSpread))}
@@ -825,7 +846,7 @@ const Analyse = (() => {
     const vals = [fv.sector, fv.dcf].filter(ok);
     const gap = vals.length ? f.mcap / (vals.reduce((x, y) => x + y, 0) / vals.length) - 1 : null;
     const th = ok(f.vaeTh) ? ` (sans croissance, sa rentabilité justifierait ${X(f.vaeTh)})` : "";
-    const obs = ok(f.vae) ? `Le marché la valorise ${X(f.vae)} son actif économique${th}` : "Le marché la valorise";
+    const obs = ok(f.vae) ? `Le marché la valorise ${X(f.vae)} ses capitaux employés${th}` : "Le marché la valorise";
     const g = ok(gap) ? ` ; cours ${gap <= 0 ? nf0.format(-gap * 100) + " % sous" : nf0.format(gap * 100) + " % au-dessus de"} la valeur estimée` : "";
     if (!ok(f.spread)) return ["grey", obs + g + "."];
     if (f.spread >= 0) {
@@ -839,11 +860,11 @@ const Analyse = (() => {
   function marketCard(c, f, i, st, mv) {
     const cur = esc(c.cur);
     return card("Le prix de marché face à la valeur créée", "", `<p class="verdict-line">${light(mv[0])}${mv[1]}</p><div class="kpis">
-        ${kpi("VE / actif économique", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `justifié sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux investis"}</small>` + bench(st, "vae", f.vae, X, false))}
-        ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − actif économique</small>`)}
+        ${kpi("VE / capitaux employés", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `justifié sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux employés"}</small>` + bench(st, "vae", f.vae, X, false))}
+        ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − capitaux employés</small>`)}
         ${kpi("Capitalisation / capitaux propres (PBR)", X(f.pbr), `<small class="bench">${ok(f.roe) && f.kE > 0 ? `justifié sans croissance : ROE / coût des fonds propres = ${X(f.roe / f.kE)}` : ""}</small>`)}
       </div>${valueBar(c, f, fairValue(c, f, i, st))}`,
-      `Si l'entreprise crée de la valeur, sa valeur d'entreprise doit dépasser son actif économique : sans croissance, VE / actif économique ≈ ROCE / CMPC,
+      `Si l'entreprise crée de la valeur, sa valeur d'entreprise doit dépasser ses capitaux employés : sans croissance, VE / capitaux employés ≈ ROCE / CMPC,
        et côté actionnaire capitalisation / capitaux propres ≈ ROE / coût des fonds propres. Un multiple observé bien supérieur signifie que le marché paie
        déjà une croissance future ; bien inférieur, qu'il doute de la pérennité de la rentabilité, ou qu'il y a une opportunité.`);
   }
@@ -1192,10 +1213,11 @@ const Analyse = (() => {
     comparé au <b>coût du capital</b>, CMPC = taux sans risque + bêta d'actif × prime de risque) et « <b>du point de vue des prêteurs</b> »
     (solvabilité et liquidité).</p>
     <p><b>Puis, pour une société cotée, une seconde question : si elle crée de la valeur, le marché la paie-t-il déjà ?</b>
-    Sa valeur d'entreprise devrait dépasser son actif économique (sans croissance, VE / actif économique ≈ ROCE / CMPC). On compare
+    Sa valeur d'entreprise devrait dépasser ses capitaux employés (sans croissance, VE / capitaux employés ≈ ROCE / CMPC). On compare
     le prix de marché à cette référence, aux multiples du secteur et à la valeur par actualisation des flux de trésorerie disponibles.</p>
     <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
-    = résultat d'exploitation × (1 − IS) / actif économique ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
+    = résultat d'exploitation × (1 − IS) / capitaux employés moyens (capitaux propres + dette nette, moyenne ouverture–clôture) ;
+    dette nette = dettes financières − trésorerie − placements à court terme ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
     <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents
     du secteur) et <b>par rapport à des normes</b> (les repères ci-dessus).</p>`;
 

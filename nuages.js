@@ -55,9 +55,9 @@ const Nuages = (() => {
       x: { key: "rotation", label: "Rotation de l'actif économique (CA / actif économique, échelle log)", type: "log", min: 0.1, max: 10, fmt: (v) => nf1.format(v).replace(",0", "") + "×" },
       y: { key: "margin", label: "Marge d'exploitation après impôt", type: "lin", min: -0.1, max: 0.4, fmt: (v) => nf0.format(v * 100) + " %" },
       iso: { kind: "inverse", values: [0.05, 0.1, 0.15, 0.2], label: (r) => `ROCE ${nf0.format(r * 100)} %` } },
-    creation: { name: "Création de valeur × prix", desc: "Vernimmen : une société dont la rentabilité économique (ROCE après IS) dépasse son coût du capital crée de la valeur ; sa valeur d'entreprise devrait dépasser son actif économique. La courbe donne la valeur théorique sans croissance (VE / actif économique = ROCE / CMPC, CMPC moyen). En bas à droite : crée de la valeur mais cotée sous son actif — décote à expliquer ou opportunité. En haut à gauche : détruit de la valeur mais cotée cher.",
+    creation: { name: "Création de valeur × prix", desc: "Vernimmen : une société dont la rentabilité économique (ROCE après IS) dépasse son coût du capital crée de la valeur ; sa valeur d'entreprise devrait dépasser son actif économique. La courbe donne la valeur théorique sans croissance (VE / capitaux employés = ROCE / CMPC, CMPC moyen). En bas à droite : crée de la valeur mais cotée sous son actif — décote à expliquer ou opportunité. En haut à gauche : détruit de la valeur mais cotée cher.",
       x: { key: "spread", label: "ROCE après IS − coût du capital du secteur (points)", type: "lin", min: -0.2, max: 0.4, fmt: (v) => (v > 0 ? "+" : "") + nf0.format(v * 100) },
-      y: { key: "vae", label: "Valeur d'entreprise / actif économique (échelle log)", type: "log", min: 0.2, max: 30, fmt: (v) => nf1.format(v).replace(",0", "") + "×" },
+      y: { key: "vae", label: "Valeur d'entreprise / capitaux employés (échelle log)", type: "log", min: 0.2, max: 30, fmt: (v) => nf1.format(v).replace(",0", "") + "×" },
       guides: [{ axis: "x", v: 0 }, { axis: "y", v: 1 }],
       curve: { fn: (x) => 1 + x / Analyse.marketK(), label: "valeur théorique sans croissance" } },
     pbr: { name: "ROE × PBR (actionnaire)", desc: "Même logique côté actionnaire : capitalisation / capitaux propres (PBR) face à la rentabilité des capitaux propres moins leur coût (bêta réendetté). Au-dessus de 1× sans ROE supérieur au coût des fonds propres, le marché paie une croissance ou un redressement attendus.",
@@ -85,7 +85,7 @@ const Nuages = (() => {
         : ["FR", "EU", "GB"].includes(z) ? "eu" : "as";
       return { c: r.c, g, rev: r.m.rev, ni: r.m.ni, mcapE: ok(f.mcap) ? f.mcap * rate : null,
         roce: f.roce, evEbitda: f.evEbitda, growth: f.growth, ebitdaMargin: f.ebitdaMargin, ndEbitda: f.ndEbitda,
-        rotation: ok(f.rotation) && f.ae > 0 ? f.rotation : null, margin: f.margin,
+        rotation: ok(f.rotation) ? f.rotation : null, margin: f.margin,
         spread: f.spread, vae: f.vae, roeSpread: f.roeSpread, pbr: f.pbr };
     });
   }
