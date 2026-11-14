@@ -6,10 +6,11 @@ rentabilité ; conclusion actionnaires / prêteurs). Tout en français. Proprié
 intéressé par la reprise d'entreprise et le stock picking.
 
 ## Deux espaces
-- **Investir** (sociétés cotées) : Sociétés (tableau), 4 étapes (2 × 2 nuages, verdicts), Stock picking
-  (stratégies, valeur DCF / multiple, liste de suivi), Secteurs (barres + tableau), Nuages, Comparer.
-- **Reprendre** (PME françaises 2–50 M€) : Carte des PME (Leaflet, Plan IGN), fiche PME en 4 étapes,
-  comparables cotés, Simulateur LBO de repreneur.
+- **Investir** (sociétés cotées) : Vue générale (`tdb.js`, 2 × 2 nuages, verdicts), Analyse (tableau + fiche
+  toujours visible à droite sur grand écran, méthode repliable sinon), Stock picking, Secteurs (4 nuages de
+  bulles par étape + tableau), Ratios (`nuages.js`, dont marge × rotation à iso-ROCE ; ex-« Comparer »).
+- **Reprendre** (PME françaises 2–50 M€), même logique : Vue générale PME (4 nuages, verdicts, `TDB.panel`
+  réutilisé), Carte et analyse (Leaflet Plan IGN + tableau + fiche à droite), Simulateur LBO de repreneur.
 - **Méthode** : texte du plan en 4 étapes (`Analyse.methodHtml`).
 
 ## Fichiers

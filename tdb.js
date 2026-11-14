@@ -34,11 +34,13 @@ const TDB = (() => {
     const i = state.meta.years.indexOf(Number($("year").value));
     data = compute(true).map((r) => {
       const { f, s } = Analyse.stepColors(r.c, i);
-      return { c: r.c, f, s, all: s.every((x) => x === "green") };
+      return { c: r.c, id: r.c.id, f, s, all: s.every((x) => x === "green") };
     });
+    data.forEach((d, k) => (d.k = k));
   }
 
-  function panel(p) {
+  // Un panneau : D = [{ id, f, s }], s = verdicts des 4 étapes ; réutilisé par la vue générale des PME.
+  function panel(p, D = data, only = onlyAll, h = hot) {
     const W = 460, H = 300, L = 46, R = 10, T = 10, B = 34;
     const tx = (v) => (p.x.log ? Math.log10(v) : v), ty = (v) => (p.y.log ? Math.log10(v) : v);
     const sx = (v) => L + (tx(Math.min(p.x.max, Math.max(p.x.min, v))) - tx(p.x.min)) / (tx(p.x.max) - tx(p.x.min)) * (W - L - R);
@@ -72,11 +74,11 @@ const TDB = (() => {
     const idx = p.n - 1;
     let marks = "";
     const order = { grey: 0, red: 1, orange: 2, green: 3 };
-    const shown = data.filter((d) => ok(d.f[p.x.k]) && ok(d.f[p.y.k]) && (!p.y.log || d.f[p.y.k] > 0) && (!p.x.log || d.f[p.x.k] > 0) && (!onlyAll || d.all))
+    const shown = D.filter((d) => ok(d.f[p.x.k]) && ok(d.f[p.y.k]) && (!p.y.log || d.f[p.y.k] > 0) && (!p.x.log || d.f[p.x.k] > 0) && (!only || d.all))
       .sort((a, b) => order[a.s[idx]] - order[b.s[idx]]);
     shown.forEach((d) => {
-      const k = data.indexOf(d);
-      marks += `<circle class="dp s-${d.s[idx]}${d.c.id === hot ? " hot" : ""}" data-k="${k}" cx="${sx(d.f[p.x.k]).toFixed(1)}" cy="${sy(d.f[p.y.k]).toFixed(1)}" r="${d.c.id === hot ? 7 : 3.2}"/>`;
+      const k = d.k ?? D.indexOf(d);
+      marks += `<circle class="dp s-${d.s[idx]}${d.id === h ? " hot" : ""}" data-k="${k}" cx="${sx(d.f[p.x.k]).toFixed(1)}" cy="${sy(d.f[p.y.k]).toFixed(1)}" r="${d.id === h ? 7 : 3.2}"/>`;
     });
     const counts = { green: 0, orange: 0, red: 0 };
     shown.forEach((d) => { if (counts[d.s[idx]] !== undefined) counts[d.s[idx]]++; });
@@ -137,5 +139,5 @@ const TDB = (() => {
     });
   }
 
-  return { mount, render };
+  return { mount, render, panel, STATUS };
 })();

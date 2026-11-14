@@ -1,5 +1,5 @@
 "use strict";
-// Onglet « Nuages » : une société = un point, pour voir les familles de
+// Onglet « Ratios » (nuages) : une société = un point, pour voir les familles de
 // sociétés se dégager. Couleur = pays (France bleu, USA orange), remplissage
 // = grand indice (CAC 40, ≈ S&P 500 = point plein ; autres = cercle).
 // Dépend de app.js : $, ok, esc, nf0, nf1, state, compute, openDetail, fx.
@@ -51,6 +51,10 @@ const Nuages = (() => {
     dette: { name: "Endettement × rentabilité", desc: "À gauche du zéro : trésorerie nette. À droite de 3× : endettement lourd, à surveiller si la rentabilité est faible.",
       x: { key: "ndEbitda", label: "Dette nette / EBE", type: "lin", min: -4, max: 8, fmt: (v) => nf1.format(v) + "×" },
       y: { key: "roce", label: "ROCE après IS", type: "lin", min: -0.2, max: 0.6, fmt: (v) => nf0.format(v * 100) + " %" } },
+    rotation: { name: "Marge × rotation (ROCE)", desc: "ROCE après IS = marge × rotation. À gauche, les métiers capitalistiques (énergie, télécoms) ont besoin de fortes marges ; à droite, la distribution tourne vite son actif avec des marges faibles. Les courbes relient les points de même ROCE.",
+      x: { key: "rotation", label: "Rotation de l'actif économique (CA / actif économique, échelle log)", type: "log", min: 0.1, max: 10, fmt: (v) => nf1.format(v).replace(",0", "") + "×" },
+      y: { key: "margin", label: "Marge d'exploitation après impôt", type: "lin", min: -0.1, max: 0.4, fmt: (v) => nf0.format(v * 100) + " %" },
+      iso: { kind: "inverse", values: [0.05, 0.1, 0.15, 0.2], label: (r) => `ROCE ${nf0.format(r * 100)} %` } },
   };
 
   const st = { preset: "taille", hidden: new Set(["us"]), focus: "" };   // focus : secteur mis en avant   // les 3 000 « autres US » masquées par défaut
@@ -71,7 +75,8 @@ const Nuages = (() => {
       const g = z === "US" ? (sp.has(r.c.id) ? "sp" : "us") : z === "FR" && CAC40.has(r.c.id.slice(3)) ? "cac"
         : ["FR", "EU", "GB"].includes(z) ? "eu" : "as";
       return { c: r.c, g, rev: r.m.rev, ni: r.m.ni, mcapE: ok(f.mcap) ? f.mcap * rate : null,
-        roce: f.roce, evEbitda: f.evEbitda, growth: f.growth, ebitdaMargin: f.ebitdaMargin, ndEbitda: f.ndEbitda };
+        roce: f.roce, evEbitda: f.evEbitda, growth: f.growth, ebitdaMargin: f.ebitdaMargin, ndEbitda: f.ndEbitda,
+        rotation: ok(f.rotation) && f.ae > 0 ? f.rotation : null, margin: f.margin };
     });
   }
 
@@ -112,7 +117,7 @@ const Nuages = (() => {
       const seg = [];
       for (let k = 0; k <= 80; k++) {
         const x = Math.pow(10, Math.log10(pr.x.min) + k / 80 * (Math.log10(pr.x.max) - Math.log10(pr.x.min)));
-        const y = r * x;
+        const y = pr.iso.kind === "inverse" ? r / x : r * x;
         if (y >= Math.max(pr.y.min, pr.y.type === "symlog" ? 1 : pr.y.min) && y <= pr.y.max) seg.push([sx(x), sy(y)]);
       }
       if (seg.length > 1) {

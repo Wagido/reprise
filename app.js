@@ -307,26 +307,68 @@ function renderSectors() {
     ["ROCE", (ms) => pct(median(ms.map((m) => m.roce)), true)],
     ["BFR", (ms) => days(median(ms.map((m) => m.bfrDays)))],
   ];
-  // Petits graphiques en barres, un par indicateur, secteurs triés (repères du plan en 4 étapes).
+  // Quatre nuages de secteurs (médianes), un par étape du plan : une bulle = un secteur, taille = nombre de sociétés.
   const short = (k) => (state.meta.sectors[k] || k).split(/[,(&]/)[0].trim();
+  const yi = state.meta.years.indexOf(Number($("year").value));
+  const figs = {};
+  for (const r of rows) (figs[r.c.s] ||= []).push(Analyse.figures(r.c, yi));
+  const med = (k, fn) => median((figs[k] || []).map(fn));
+  const P = (v) => nf0.format(v * 100) + " %";
   const charts = [
-    ["1. EBE en % du CA", (ms) => median(ms.map((m) => m.ebitdaMargin)), (v) => nf0.format(v * 100) + " %", "La marge que laisse le métier."],
-    ["1. Croissance du CA (par an, 3 ans)", (ms) => median(ms.map((m) => m.growth)), (v) => nf1.format(v * 100) + " %", "Secteurs en expansion ou à maturité."],
-    ["2. BFR en jours de CA", (ms) => median(ms.map((m) => m.bfrDays)), (v) => nf0.format(v) + " j", "Le poids du cycle d'exploitation : négatif, il finance la croissance."],
-    ["2. Investissements en % du CA", (ms) => median(ms.map((m) => (ok(m.capex) && ok(m.rev) && m.rev > 0 ? m.capex / m.rev : null))), (v) => nf1.format(v * 100) + " %", "L'intensité capitalistique du métier."],
-    ["3. Dette nette / EBE", (ms) => median(ms.map((m) => m.leverage)), (v) => nf1.format(v) + "×", "Repère : 3× au plus."],
-    ["4. Rentabilité économique (ROCE avant IS)", (ms) => median(ms.map((m) => m.roce)), (v) => nf0.format(v * 100) + " %", "À comparer au coût du capital."],
+    { t: "1. Marges : croissance × marge d'EBE", note: "En haut à droite, les métiers qui croissent avec une forte marge.",
+      x: { l: "Croissance annuelle du CA (3 ans)", f: (k) => median(by[k].map((m) => m.growth)), fmt: P },
+      y: { l: "Marge d'EBE", f: (k) => median(by[k].map((m) => m.ebitdaMargin)), fmt: P } },
+    { t: "2. Investissements : BFR × investissements", note: "À gauche du zéro, le cycle d'exploitation finance l'entreprise ; en haut, les métiers capitalistiques.",
+      x: { l: "BFR en jours de CA", f: (k) => median(by[k].map((m) => m.bfrDays)), fmt: (v) => nf0.format(v) + " j" },
+      y: { l: "Investissements en % du CA", f: (k) => median(by[k].map((m) => (ok(m.capex) && ok(m.rev) && m.rev > 0 ? m.capex / m.rev : null))), fmt: P } },
+    { t: "3. Financement : endettement × rentabilité", note: "Repère : dette nette / EBE de 3× au plus (ligne verticale).", ref: 3,
+      x: { l: "Dette nette / EBE", f: (k) => median(by[k].map((m) => m.leverage)), fmt: (v) => nf1.format(v) + "×" },
+      y: { l: "ROCE", f: (k) => median(by[k].map((m) => m.roce)), fmt: P } },
+    { t: "4. Rentabilité : marge × rotation", note: "ROCE après IS = marge × rotation ; les courbes relient les points de même ROCE.", iso: [0.05, 0.1, 0.2],
+      x: { l: "Rotation de l'actif économique (log)", f: (k) => med(k, (f) => (ok(f.rotation) && f.ae > 0 ? f.rotation : null)), fmt: (v) => nf1.format(v).replace(",0", "") + "×", log: true },
+      y: { l: "Marge d'exploitation après impôt", f: (k) => med(k, (f) => f.margin), fmt: P } },
   ];
-  $("sectorCharts").innerHTML = charts.map(([title, fn, fmt, note]) => {
-    const rowsC = keys.filter((k) => by[k].length >= 5).map((k) => [k, fn(by[k])]).filter(([, v]) => ok(v)).sort((x, y) => y[1] - x[1]);
-    if (!rowsC.length) return "";
-    const lo = Math.min(0, ...rowsC.map((r) => r[1])), hi = Math.max(0, ...rowsC.map((r) => r[1]));
-    const span = hi - lo || 1, x = (v) => (v - lo) / span * 100;
-    return `<div class="card schart"><h3>${title}</h3><div class="bars">${rowsC.map(([k, v]) => `
-      <div class="brow" data-sector="${k}"><span class="bl">${esc(short(k))}</span>
-        <span class="bt"><span class="b0" style="left:${x(0)}%"></span><span class="bb${v < 0 ? " neg" : ""}" style="left:${x(Math.min(0, v))}%;width:${Math.max(0.5, Math.abs(x(v) - x(0)))}%"></span></span>
-        <span class="bv">${fmt(v)}</span></div>`).join("")}</div><p class="note">${note}</p></div>`;
-  }).join("");
+  const big = keys.filter((k) => by[k].length >= 5);
+  const maxN = Math.max(1, ...big.map((k) => by[k].length));
+  const focus = $("sector").value;
+  $("sectorCharts").innerHTML = charts.map((ch) => {
+    const pts = big.map((k) => ({ k, x: ch.x.f(k), y: ch.y.f(k), n: by[k].length })).filter((p) => ok(p.x) && ok(p.y) && (!ch.x.log || p.x > 0));
+    if (pts.length < 2) return "";
+    const W = 460, H = 320, L = 50, R = 12, T = 12, B = 38;
+    const tx = ch.x.log ? Math.log10 : (v) => v;
+    const xs = pts.map((p) => tx(p.x)), ys = pts.map((p) => p.y);
+    const pad = (lo, hi) => { const d = (hi - lo) || Math.abs(hi) || 1; return [lo - d * 0.12, hi + d * 0.12]; };
+    let [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
+    if (!ch.x.log) { x0 = Math.min(x0, 0); } y0 = Math.min(y0, 0);
+    if (ch.ref) x1 = Math.max(x1, ch.ref * 1.1);
+    const sx = (v) => L + (tx(v) - x0) / (x1 - x0) * (W - L - R), sy = (v) => T + (y1 - v) / (y1 - y0) * (H - T - B);
+    const nice = (lo, hi) => { const st = (hi - lo) / 5, p = Math.pow(10, Math.floor(Math.log10(st))), s = [1, 2, 5, 10].map((m) => m * p).find((m) => m >= st); const o = []; for (let v = Math.ceil(lo / s) * s; v <= hi + 1e-9; v += s) o.push(+v.toFixed(6)); return o; };
+    let g = "";
+    const xt = ch.x.log ? [0.1, 0.2, 0.5, 1, 2, 5, 10].filter((v) => tx(v) >= x0 && tx(v) <= x1) : nice(x0, x1);
+    for (const v of xt) g += `<line class="grid${v === 0 ? " zero" : ""}" x1="${sx(v)}" x2="${sx(v)}" y1="${T}" y2="${H - B}"/><text class="ax" x="${sx(v)}" y="${H - B + 14}" text-anchor="middle">${ch.x.fmt(v)}</text>`;
+    for (const v of nice(y0, y1)) g += `<line class="grid${v === 0 ? " zero" : ""}" x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}"/><text class="ax" x="${L - 5}" y="${sy(v) + 4}" text-anchor="end">${ch.y.fmt(v)}</text>`;
+    g += `<text class="ax t" x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">${esc(ch.x.l)}</text><text class="ax t" transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle">${esc(ch.y.l)}</text>`;
+    if (ch.ref) g += `<line class="iso" x1="${sx(ch.ref)}" x2="${sx(ch.ref)}" y1="${T}" y2="${H - B}"/>`;
+    for (const r of ch.iso || []) {
+      const seg = [];
+      for (let q = 0; q <= 60; q++) { const lv = x0 + q / 60 * (x1 - x0), x = Math.pow(10, lv), y = r / x; if (y >= y0 && y <= y1) seg.push(`${sx(x).toFixed(1)},${sy(y).toFixed(1)}`); }
+      if (seg.length > 1) { const lp = seg[Math.floor(seg.length * 0.75)].split(","); g += `<polyline class="iso" points="${seg.join(" ")}"/><text class="iso-l" x="${+lp[0] + 3}" y="${+lp[1] - 3}">ROCE ${P(r)}</text>`; }
+    }
+    const sorted = pts.sort((p, q) => q.n - p.n);
+    let m = "";
+    for (const p of sorted) {
+      const rr = 4 + 14 * Math.sqrt(p.n / maxN);
+      m += `<circle class="sb${focus && p.k !== focus ? " dim" : ""}" data-sector="${p.k}" cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${rr.toFixed(1)}"><title>${esc(state.meta.sectors[p.k])} (${p.n} sociétés)\n${esc(ch.x.l)} : ${ch.x.fmt(p.x)}\n${esc(ch.y.l)} : ${ch.y.fmt(p.y)}</title></circle>`;
+    }
+    const placed = [];
+    for (const p of sorted) {
+      const nm = short(p.k), x = sx(p.x) + 4 + 14 * Math.sqrt(p.n / maxN) + 2, y = sy(p.y) + 4;
+      const box = [x, y - 10, x + nm.length * 5.8, y + 2];
+      if (box[2] > W - R || placed.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
+      placed.push(box); m += `<text class="lbl" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${esc(nm)}</text>`;
+    }
+    return `<div class="card schart"><h3>${esc(ch.t)}</h3><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ch.t)}">${g}${m}</svg><p class="note">${esc(ch.note)}</p></div>`;
+  }).join("") + `<p class="note" style="grid-column:1/-1">Une bulle = un secteur (5 sociétés au moins), placée à la médiane ; taille = nombre de sociétés. Survoler pour le détail, cliquer pour filtrer le tableau sur ce secteur.</p>`;
 
   $("sectorTable").innerHTML =
     `<thead><tr><th class="l">Secteur</th>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>` +
@@ -653,8 +695,22 @@ function onFilter() {
   timer = setTimeout(() => { state.shown = PAGE; render(); }, 150);
 }
 
-const SPACE_OF = { list: "invest", pick: "invest", nuages: "invest", tdb: "invest", sectors: "invest", compare: "invest", pme: "reprise", lbo: "reprise", help: "method" };
-const lastView = { invest: "list", reprise: "pme", method: "help" };
+const SPACE_OF = { list: "invest", pick: "invest", nuages: "invest", tdb: "invest", sectors: "invest", compare: "invest", pme: "reprise", ptdb: "reprise", lbo: "reprise", help: "method" };
+const lastView = { invest: "tdb", reprise: "ptdb", method: "help" };
+// Sur grand écran, l'onglet Analyse garde la fiche ouverte à droite (méthode tant qu'aucune société n'est choisie).
+const splitMode = () => (state.view === "list" || state.view === "pme") && window.innerWidth >= 1000;
+function showMethodPanel() {
+  $("detailBody").innerHTML = `<div class="card method-panel"><details open><summary><b>La méthode : le plan d'analyse en 4 étapes</b><span class="pm"></span></summary>${Analyse.methodHtml}</details>
+    <p class="note">Cliquer une société ${state.view === "pme" ? "sur la carte ou dans le tableau" : "dans le tableau"} pour afficher son analyse ici.</p></div>`;
+  $("detailBody").onclick = null;
+  $("detail").hidden = false;
+}
+function closeDetail() {
+  if (splitMode()) showMethodPanel(); else $("detail").hidden = true;
+}
+function syncHeader() {
+  document.documentElement.style.setProperty("--hdr", document.querySelector(".top").offsetHeight + "px");
+}
 
 function setView(v) {
   state.view = v;
@@ -665,10 +721,15 @@ function setView(v) {
     b.hidden = b.dataset.in !== space;
     b.setAttribute("aria-selected", String(b.dataset.view === v));
   });
-  for (const s of ["list", "sectors", "compare", "pick", "nuages", "tdb", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  for (const s of ["list", "sectors", "compare", "pick", "nuages", "tdb", "pme", "ptdb", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  document.body.dataset.view = v;
+  syncHeader();
+  if (splitMode()) { if ($("detail").hidden || !$("detailBody").innerHTML || state.splitOf !== v) showMethodPanel(); state.splitOf = v; }
+  else $("detail").hidden = true;
   $("filters").hidden = space !== "invest";
   document.body.dataset.space = space;
-  if (v === "pme") PME.show();
+  $("pmeHead").hidden = !(v === "pme" || v === "ptdb");
+  if (v === "pme" || v === "ptdb") PME.show();
   if (v === "lbo") LBO.mount();
   if (v === "pick") Picking.mount();
   if (v === "nuages") Nuages.mount();
@@ -721,9 +782,10 @@ function bind() {
   };
   document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => setView(b.dataset.view)));
   document.querySelectorAll(".spaces button").forEach((b) => (b.onclick = () => setView(lastView[b.dataset.space])));
-  $("closeDetail").onclick = () => ($("detail").hidden = true);
-  $("detail").onclick = (e) => { if (e.target === $("detail")) $("detail").hidden = true; };
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("detail").hidden = true; });
+  $("closeDetail").onclick = closeDetail;
+  $("detail").onclick = (e) => { if (e.target === $("detail")) closeDetail(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+  window.addEventListener("resize", () => { syncHeader(); if (state.view === "list" || state.view === "pme") setView(state.view); });
 }
 
 // Exercice par défaut : le plus récent pour lequel au moins 60 % des sociétés
@@ -773,7 +835,7 @@ async function init() {
   bindCompare();
   let start = "list";
   try { start = localStorage.getItem("reprise.view") || "list"; } catch (e) { /* ignoré */ }
-  setView(SPACE_OF[start] ? start : "list");
+  setView(SPACE_OF[start] && start !== "compare" ? start : "tdb");
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 

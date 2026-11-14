@@ -434,3 +434,28 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .dps-chart { width: 100%; height: auto; display: block; }
 .dps-chart .ax { fill: var(--muted); font-size: 11px; }
 .checks + .kpis { margin-top: 14px; }
+
+/* ---------- Onglet Analyse : fiche toujours visible à droite sur grand écran ---------- */
+@media (min-width: 1000px) {
+  body[data-view="list"] main, body[data-view="list"] #filters, body[data-view="pme"] main { margin-right: min(48vw, 780px); }
+  body[data-view="list"] .detail, body[data-view="pme"] .detail { top: var(--hdr, 110px); left: auto; width: min(48vw, 780px); background: transparent; z-index: 4; }
+  body[data-view="list"] .detail-inner, body[data-view="pme"] .detail-inner { box-shadow: none; border-left: 1px solid var(--line); width: 100%; }
+}
+.method-panel summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.method-panel summary::-webkit-details-marker { display: none; }
+.method-panel .pm::after { content: "−"; font-size: 20px; color: var(--accent); }
+.method-panel details:not([open]) .pm::after { content: "+"; }
+.method-panel ol { padding-left: 20px; } .method-panel li { margin-bottom: 6px; }
+.vbar-txt { margin-top: 62px !important; }
+/* Secteurs : 4 nuages de bulles */
+.sector-charts { grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); }
+.schart svg { width: 100%; height: auto; display: block; }
+.schart .grid { stroke: var(--line); } .schart .grid.zero { stroke: var(--muted); }
+.schart .ax { fill: var(--muted); font-size: 10.5px; } .schart .ax.t { font-size: 11px; }
+.schart .iso { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: .7; }
+.schart .iso-l { fill: var(--muted); font-size: 10px; }
+.schart .lbl { fill: var(--ink); font-size: 10.5px; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; pointer-events: none; }
+.schart circle.sb { fill: var(--fr); fill-opacity: .45; stroke: var(--fr); stroke-width: 1; cursor: pointer; }
+.schart circle.sb:hover { fill-opacity: .8; stroke: var(--ink); }
+.schart circle.sb.dim { fill: var(--c-other); fill-opacity: .2; stroke: none; }
+@media (max-width: 520px) { .sector-charts { grid-template-columns: 1fr; } }

@@ -127,6 +127,7 @@ const PME = (() => {
 
   function render() {
     if (!loaded) return;
+    if (state.view === "ptdb") { bindTdb(); renderTdb(); return; }
     rows = compute();
     const { key, dir } = st.sort;
     const col = COLS.find((c) => c.key === key);
@@ -173,20 +174,116 @@ const PME = (() => {
   }
 
   // ---------- Fiche PME ----------
+  // Statistiques sectorielles : PME du même code NAF (au moins 20), sinon de la même section. Mises en cache.
+  let groups = null;
+  const statCache = new Map();
   function sectionStats(o) {
-    // Comparaison avec les PME du même code NAF (au moins 20), sinon de la même section.
-    const same = data.list.filter((x) => x.naf === o.naf);
-    const pool = same.length >= 20 ? same : data.list.filter((x) => x.sec === o.sec);
+    if (!groups) {
+      groups = { naf: new Map(), sec: new Map() };
+      for (const x of data.list) {
+        if (!groups.naf.has(x.naf)) groups.naf.set(x.naf, []); groups.naf.get(x.naf).push(x);
+        if (!groups.sec.has(x.sec)) groups.sec.set(x.sec, []); groups.sec.get(x.sec).push(x);
+      }
+    }
+    const same = groups.naf.get(o.naf) || [];
+    const key = same.length >= 20 ? "n" + o.naf : "s" + o.sec;
+    if (statCache.has(key)) return statCache.get(key);
+    const pool = same.length >= 20 ? same : groups.sec.get(o.sec) || [];
     const label = same.length >= 20 ? `du code NAF ${o.naf} (${same.length} PME)` : `de la section ${o.sec} — ${data.meta.sections[o.sec] || ""} (${pool.length} PME)`;
-    const med = (k) => {
-      const s = pool.map((x) => x[k]).filter(ok).sort((a, b) => a - b);
-      return s.length ? s[s.length >> 1] : null;
-    };
+    const sorted = {};
+    const vals = (k) => (sorted[k] ||= pool.map((x) => x[k]).filter(ok).sort((a, b) => a - b));
+    const med = (k) => { const s = vals(k); return s.length ? s[s.length >> 1] : null; };
     const pctl = (k, v) => {
-      const s = pool.map((x) => x[k]).filter(ok);
-      return ok(v) && s.length ? Math.round(s.filter((x) => x < v).length / s.length * 100) : null;
+      const s = vals(k);
+      if (!ok(v) || !s.length) return null;
+      let lo = 0, hi = s.length; while (lo < hi) { const m = (lo + hi) >> 1; if (s[m] < v) lo = m + 1; else hi = m; }
+      return Math.round(lo / s.length * 100);
     };
-    return { label, med, pctl };
+    const res = { label, med, pctl };
+    statCache.set(key, res);
+    return res;
+  }
+
+  // Verdicts du plan en 4 étapes (mêmes règles pour la fiche et la vue générale).
+  function stepColors(o, ss = sectionStats(o)) {
+    const v1 = !ok(o.me) ? "grey" : o.ebit < 0 || o.me < 0 ? "red" : ok(ss.med("me")) && o.me >= ss.med("me") ? "green" : "orange";
+    const v2 = !ok(o.bfrj) && !ok(o.vet) ? "grey" : (ok(o.vet) && o.vet < 30) || (ok(o.bfrj) && ok(ss.med("bfrj")) && o.bfrj > ss.med("bfrj") * 1.5 && o.bfrj > 30) ? "orange" : "green";
+    const v3 = !ok(o.remb) ? "grey" : o.remb < 0 ? (o.ebe < 0 ? "red" : "green") : o.remb <= 3 ? "green" : o.remb <= 5 ? "orange" : "red";
+    const v4 = !ok(o.nm) ? "grey" : o.nm >= 5 ? "green" : o.nm >= 0 ? "orange" : "red";
+    return [v1, v2, v3, v4];
+  }
+
+  // ---------- Vue générale : le plan en 4 étapes pour toutes les PME ----------
+  const PP = (v) => nf0.format(v) + " %";
+  const PANELS = [
+    { n: 1, title: "Les marges", sub: "croissance × marge d'EBE",
+      x: { k: "g", label: "Croissance annuelle du CA", min: -0.2, max: 0.4, fmt: (v) => nf0.format(v * 100) + " %" },
+      y: { k: "me", label: "Marge d'EBE", min: -10, max: 40, fmt: PP },
+      guides: [{ axis: "x", v: 0 }], note: "En haut à droite : la PME grandit et garde une marge élevée." },
+    { n: 2, title: "Les investissements", sub: "BFR × état de l'outil",
+      x: { k: "bfrj", label: "BFR en jours de CA", min: -60, max: 180, fmt: (v) => nf0.format(v) + " j" },
+      y: { k: "vet", label: "État de l'outil (immobilisations nettes / brutes)", min: 0, max: 100, fmt: PP },
+      guides: [{ axis: "y", v: 30, label: "outil vieillissant ↓" }, { axis: "x", v: 0 }],
+      note: "Sous 30 % : l'outil est largement amorti, des investissements de remise à niveau sont à prévoir après la reprise." },
+    { n: 3, title: "Le financement", sub: "capacité de remboursement × autonomie",
+      x: { k: "remb", label: "Dettes financières / CAF (années)", min: -2, max: 10, fmt: (v) => nf0.format(v) + " ans" },
+      y: { k: "auto", label: "Autonomie financière (capitaux propres / bilan)", min: 0, max: 100, fmt: PP },
+      guides: [{ axis: "x", v: 3, label: "3 ans" }, { axis: "y", v: 25, label: "25 %", above: true }],
+      zone: { x1: -2, x2: 3, y1: 25, y2: 100 }, note: "Zone tramée : dette remboursable en 3 ans de CAF au plus et fonds propres solides — une cible qui laisse de la place à la dette de reprise." },
+    { n: 4, title: "La rentabilité", sub: "CAF × marge nette",
+      x: { k: "cafca", label: "Capacité d'autofinancement / CA", min: -10, max: 30, fmt: PP },
+      y: { k: "nm", label: "Marge nette", min: -10, max: 25, fmt: PP },
+      guides: [{ axis: "y", v: 5, label: "5 %", above: true }, { axis: "y", v: 0 }],
+      note: "La CAF rembourse la dette de reprise ; au-dessus de 5 % de marge nette, la rentabilité est jugée satisfaisante." },
+  ];
+  let tdb = [], tOnly = false, tHot = null;
+  function renderTdb() {
+    const list = compute();
+    tdb = list.map((o, k) => { const s = stepColors(o); return { o, k, id: o.siren, f: o, s, all: s.every((x) => x === "green") }; });
+    const good = tdb.filter((d) => d.all).sort((a, b) => (b.o.me || 0) - (a.o.me || 0));
+    $("pmeInfo").textContent = `${nf0.format(tdb.length)} PME sur ${nf0.format(data.list.length)} (CA de ${data.meta.ca_min / 1e6} à ${data.meta.ca_max / 1e6} M€, comptes publics)`;
+    $("ptdbOut").innerHTML = `
+      <div class="card"><h3>Le plan en 4 étapes, pour toutes les PME</h3>
+        <p class="note">Chaque point est une PME (filtres ci-dessus appliqués). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
+          <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>. Les comptes publics des PME ne donnent ni l'actif économique ni le ROCE : les graphiques utilisent les ratios publiés (BCE / INPI).</p>
+        <label class="check tdb-toggle"><input type="checkbox" id="ptdbAll" ${tOnly ? "checked" : ""}> N'afficher que les PME bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(tdb.length)})</label>
+        <div id="ptdbHot" class="tdb-hot">${hotLine()}</div>
+      </div>
+      <div class="tdb-grid">${PANELS.map((pn) => TDB.panel(pn, tdb, tOnly, tHot)).join("")}</div>
+      <div class="card"><h3>Bonnes dans les 4 étapes <small>— classées par marge d'EBE</small></h3>
+        <div class="tablewrap"><table><thead><tr><th class="l">Société</th><th class="l">NAF</th><th>CA</th><th>Croissance</th><th>Marge d'EBE</th><th>BFR</th><th>Remb. (ans)</th><th>Autonomie</th><th>Marge nette</th></tr></thead><tbody>
+        ${good.slice(0, 100).map((d) => `<tr data-k="${d.k}"><td class="l">${esc(d.o.n)}<span class="flag">${esc(d.o.com || "")} (${esc(d.o.dep || "")})</span></td><td class="l">${esc(d.o.naf || "")}</td>
+          <td>${K(d.o.ca)}</td><td>${pct(d.o.g, true)}</td><td>${P1(d.o.me)}</td><td>${J(d.o.bfrj)}</td><td>${ok(d.o.remb) ? (d.o.remb < 0 ? "trésorerie nette" : nf1.format(d.o.remb)) : "—"}</td><td>${P1(d.o.auto)}</td><td>${P1(d.o.nm)}</td></tr>`).join("")}
+        </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${nf0.format(good.length)}.</p>` : ""}</div>`;
+  }
+  function hotLine() {
+    const d = tdb.find((x) => x.id === tHot);
+    if (!d) return `<span class="note">Survoler un point pour suivre une PME dans les 4 graphiques, cliquer pour ouvrir sa fiche.</span>`;
+    return `<b>${esc(d.o.n)}</b> ${["Marges", "Investissements", "Financement", "Rentabilité"].map((t, k) => `<span class="pill s-${d.s[k]}">${t} : ${TDB.STATUS[d.s[k]]}</span>`).join(" ")}`;
+  }
+  let tBound = false, raf = null;
+  function bindTdb() {
+    if (tBound) return;
+    tBound = true;
+    const box = $("ptdbOut");
+    box.addEventListener("change", (e) => { if (e.target.id === "ptdbAll") { tOnly = e.target.checked; renderTdb(); } });
+    box.addEventListener("pointerover", (e) => {
+      const c = e.target.closest("circle.dp");
+      if (!c) return;
+      const d = tdb[Number(c.dataset.k)];
+      if (!d || d.id === tHot) return;
+      tHot = d.id;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        box.querySelectorAll("circle.dp.hot").forEach((x) => { x.classList.remove("hot"); x.setAttribute("r", 3.2); });
+        box.querySelectorAll(`circle.dp[data-k="${c.dataset.k}"]`).forEach((x) => { x.classList.add("hot"); x.setAttribute("r", 7); x.parentNode.appendChild(x); });
+        $("ptdbHot").innerHTML = hotLine();
+      });
+    });
+    box.addEventListener("click", (e) => {
+      const c = e.target.closest("circle.dp, tr[data-k]");
+      if (c) openPme(tdb[Number(c.dataset.k)].o);
+    });
   }
 
   function light(s) { return `<i class="light ${s}"></i>`; }
@@ -273,11 +370,7 @@ const PME = (() => {
     const ss = sectionStats(o);
     const caf = ok(o.cafca) ? o.cafca / 100 * o.ca : null;           // k€
     const debt = ok(o.remb) && ok(caf) && caf > 0 ? Math.max(0, o.remb * caf) : null; // dettes financières estimées, k€
-    // Verdicts.
-    const v1 = !ok(o.me) ? "grey" : o.ebit < 0 || o.me < 0 ? "red" : ok(ss.med("me")) && o.me >= ss.med("me") ? "green" : "orange";
-    const v2 = !ok(o.bfrj) && !ok(o.vet) ? "grey" : (ok(o.vet) && o.vet < 30) || (ok(o.bfrj) && ok(ss.med("bfrj")) && o.bfrj > ss.med("bfrj") * 1.5 && o.bfrj > 30) ? "orange" : "green";
-    const v3 = !ok(o.remb) ? "grey" : o.remb < 0 ? (o.ebe < 0 ? "red" : "green") : o.remb <= 3 ? "green" : o.remb <= 5 ? "orange" : "red";
-    const v4 = !ok(o.nm) ? "grey" : o.nm >= 5 ? "green" : o.nm >= 0 ? "orange" : "red";
+    const [v1, v2, v3, v4] = stepColors(o, ss);
     const verdicts = [
       [1, "Marges", v1, `CA ${K(o.ca)}${ok(o.g) ? `, croissance ${pct(o.g, true)} par an` : ""} ; marge d'EBE ${P1(o.me)} (secteur ${P1(ss.med("me"))}).`],
       [2, "Investissements", v2, `État de l'outil ${P1(o.vet)} (immobilisations nettes / brutes) ; BFR ${J(o.bfrj)} de CA.`],
@@ -340,7 +433,6 @@ const PME = (() => {
       if (peer) { const c = state.companies.find((x) => x.id === peer.dataset.peer); if (c) openDetail(c); return; }
       if (e.target.id !== "toLbo") return;
       LBO.fromPme(o);
-      $("detail").hidden = true;
       setView("lbo");
     };
     $("detailBody").onchange = (e) => {
@@ -353,7 +445,7 @@ const PME = (() => {
       openPme(o);
       $("detail").querySelector(".detail-inner").scrollTop = s;
     };
-    if ($("detail").hidden) { $("detail").hidden = false; $("detail").querySelector(".detail-inner").scrollTop = 0; }
+    $("detail").hidden = false; $("detail").querySelector(".detail-inner").scrollTop = 0;
   }
 
   // ---------- Événements ----------
@@ -376,5 +468,5 @@ const PME = (() => {
     $("pMore").onclick = () => { st.shown += 100; render(); };
   }
 
-  return { load, render, show: () => { load(); if (map) setTimeout(() => map.invalidateSize(), 50); } };
+  return { load, render, show: () => { if (loaded) render(); else load(); if (map) setTimeout(() => map.invalidateSize(), 50); } };
 })();
