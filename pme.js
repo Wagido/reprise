@@ -380,19 +380,27 @@ const PME = (() => {
     const ev = ok(o.ebe) && o.ebe > 0 ? params.mult * o.ebe : null;
     const acq = ok(o.ebe) && o.ebe > 0 ? Math.min(params.lev * o.ebe, (ev || 0) * 0.75) : null;
     const years = ok(acq) && ok(caf) && caf > 0 ? acq / (caf * 0.7) : null;  // ≈ 70 % de la CAF disponible pour la dette
+    const q = (s, who, question, txt) => `<div class="q-row">${light(s)}<div><b>${who}</b> <i>${question}</i><span>${txt}</span></div></div>`;
+    const vA = v4 === "green" && v1 !== "red" ? "green" : v4 === "red" ? "red" : v4 === "grey" ? "grey" : "orange";
+    const txtA = `Rentabilité ${vA === "green" ? "satisfaisante" : vA === "red" ? "négative" : vA === "grey" ? "non évaluable" : "faible"} : marge nette ${P1(o.nm)} (secteur ${P1(ss.med("nm"))}), résultat courant avant impôt ${P1(o.rcai)} du CA. Création de valeur au sens strict non mesurable sans l'actif économique.`;
+    const txtP = `${v3 === "green" ? (ok(o.remb) && o.remb < 0 ? "Trésorerie supérieure aux dettes financières." : "Dette remboursable en moins de 3 ans de CAF.") : v3 === "orange" ? "Remboursement en 3 à 5 ans de CAF : à surveiller." : v3 === "red" ? "Endettement lourd au regard de la CAF." : "Non évaluable."} Autonomie financière ${P1(o.auto)}, liquidité ${P1(o.liq)}.`;
+    const vR = !ok(ev) ? "red" : !ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red";
+    const txtR = !ok(ev) ? "EBE nul ou négatif : pas de valorisation par multiple ni de reprise finançable par la dette."
+      : `À ${nf1.format(params.mult)}× l'EBE, valeur d'entreprise ≈ ${K(ev)}${ok(debt) ? `, soit ≈ ${K(ev - debt)} pour les titres après les dettes financières` : ""}. Une dette d'acquisition de ${nf1.format(params.lev)}× l'EBE (${K(acq)}) se rembourse en ${ok(years) ? nf1.format(years) + " ans" : "un temps indéfini"} avec 70 % de la CAF actuelle${ok(years) ? (years <= 7 ? " : montage réaliste." : years <= 10 ? " : montage tendu." : " : montage trop lourd.") : "."}`;
     $("detailBody").innerHTML = `
       <h2>${esc(o.n)}</h2>
       <p class="meta">${esc(o.com || "")} (${esc(o.dep || "")}) · NAF ${esc(o.naf || "")} — ${esc(data.meta.sections[o.sec] || "")} · effectif ${esc(o.eff || "—")} · créée en ${esc(o.cr || "—")} · exercice ${o.y}
         · SIREN ${esc(o.siren)} · <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(o.siren)}" target="_blank" rel="noopener">fiche officielle</a></p>
-      <div class="card synth"><h3>Synthèse ${o.y} <small>— plan d'analyse en 4 étapes</small></h3>
+      <div class="card synth answers">
+        <h3><span class="part-n">1</span> L'analyse financière <small>— deux questions</small></h3>
+        ${q(vA, "Actionnaire :", "l'entreprise crée-t-elle de la valeur ?", txtA)}
+        ${q(v3, "Prêteur :", "peut-elle rembourser ses dettes ?", txtP)}
         <div class="synth-grid">${verdicts.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
-        <div class="synth-concl">
-          <div>${light(v4 === "green" && v1 !== "red" ? "green" : v4 === "red" ? "red" : "orange")}<b>Du point de vue des actionnaires</b> <span>Rentabilité ${v4 === "green" ? "satisfaisante" : v4 === "red" ? "négative" : "faible"} ; la rentabilité des capitaux propres n'est pas publiée dans cette base.</span></div>
-          <div>${light(v3)}<b>Du point de vue des prêteurs</b> <span>${v3 === "green" ? "Dette remboursable en moins de 3 ans de CAF." : v3 === "orange" ? "Remboursement en 3 à 5 ans de CAF : à surveiller." : v3 === "red" ? "Endettement lourd au regard de la CAF." : "Non évaluable."} Liquidité ${P1(o.liq)}.</span></div>
-        </div>
-        <p class="note">Comparaison avec les PME ${esc(ss.label)}. Comptes sociaux déposés au greffe ; ratios calculés par la base publique BCE / INPI.</p></div>
-      ${histChart(o)}
-      ${step(1, "Les marges", "la création de richesse", `<div class="kpis">
+        <h3><span class="part-n">2</span> La reprise <small>— à quel prix, et la dette d'acquisition est-elle remboursable ?</small></h3>
+        ${q(vR, "", "", txtR)}
+        <p class="note">Comparaison avec les PME ${esc(ss.label)}. Comptes sociaux déposés au greffe ; ratios calculés par la base publique BCE / INPI. Verdicts automatiques, à confirmer par l'analyse économique et les comptes complets.</p></div>
+      <h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— les 4 étapes, puis la conclusion (cliquer pour ouvrir)</small></h3>
+      ${step(1, "Les marges", "la création de richesse", `${histChart(o)}<div class="kpis">
         ${kpi("Chiffre d'affaires", K(o.ca))}
         ${kpi("Croissance annuelle moyenne", pct(o.g, true), bench(ss, "g", o.g, (v) => pct(v)))}
         ${kpi("Marge brute / CA", ok(o.mb) && o.ca ? P1(o.mb / o.ca * 100) : "—")}
@@ -417,8 +425,21 @@ const PME = (() => {
         ${kpi("Marge nette", P1(o.nm), bench(ss, "nm", o.nm, P1))}
         ${kpi("Résultat courant avant impôt / CA", P1(o.rcai))}</div>
         <p class="note">Les capitaux propres et l'actif économique ne sont pas publiés en montant dans cette base : ROCE et rentabilité des capitaux propres se calculent à partir des comptes complets (fiche officielle).</p>`)}
+      ${step("✓", "Conclusion de l'analyse financière", "les réponses aux deux questions",
+        `<div class="card"><h3>Du point de vue des actionnaires : l'entreprise crée-t-elle de la valeur ?</h3><p class="verdict-line">${light(vA)}${txtA}</p><div class="kpis">
+          ${kpi("Marge nette", P1(o.nm), bench(ss, "nm", o.nm, P1))}
+          ${kpi("Résultat courant avant impôt / CA", P1(o.rcai), bench(ss, "rcai", o.rcai, P1))}
+          ${kpi("Marge d'EBE", P1(o.me), bench(ss, "me", o.me, P1))}
+          ${kpi("CAF / CA", P1(o.cafca), bench(ss, "cafca", o.cafca, P1))}</div>
+          <p class="note">La création de valeur au sens strict (rentabilité économique après impôt supérieure au coût du capital) demande l'actif économique, absent de cette base : à calculer sur les comptes complets.</p></div>
+        <div class="card"><h3>Du point de vue des prêteurs : peut-elle rembourser ses dettes ?</h3><p class="verdict-line">${light(v3)}${txtP}</p><div class="kpis">
+          ${kpi("Capacité de remboursement", ok(o.remb) ? (o.remb < 0 ? "trésorerie nette" : Y(o.remb)) : "—", `<small class="bench">dettes financières / CAF ; repère ≤ 3 à 4 ans</small>`)}
+          ${kpi("Autonomie financière", P1(o.auto), bench(ss, "auto", o.auto, P1))}
+          ${kpi("Charges financières / EBE", P1(o.couv), bench(ss, "couv", o.couv, P1, false))}
+          ${kpi("Liquidité", P1(o.liq), `<small class="bench">actif circulant / dettes à court terme</small>`)}</div></div>`)}
+      <h3 class="part"><span class="part-n">2</span> La reprise <small>— à quel prix, et la dette d'acquisition est-elle remboursable ?</small></h3>
       ${comparables(o)}
-      ${step("€", "Valorisation et reprise", "multiple d'EBE et montage LBO", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p><div class="kpis">
+      ${step("€", "Prix et montage de la reprise", "multiple d'EBE et montage LBO", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p><div class="kpis">
         ${kpi("Multiple VE / EBE", `<input class="param" type="number" step="0.5" min="0" max="20" data-pparam="mult" value="${params.mult}">×`, `<small class="bench">PME françaises : souvent 4 à 7×</small>`)}
         ${kpi("Valeur d'entreprise", K(ev))}
         ${kpi("− dettes financières estimées", K(debt), `<small class="bench">capacité de remboursement × CAF</small>`)}

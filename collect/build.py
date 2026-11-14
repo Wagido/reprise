@@ -178,6 +178,9 @@ def main():
     # Groupes étrangers cotés à New York, sauf ceux déjà couverts (comptes US GAAP, France, Europe).
     known_t = {c.get("ticker") for c in us if c.get("ticker")}
     intl = [c for c in read_json("raw_intl.json", {"companies": []})["companies"] if c.get("ticker") not in known_t]
+    # Une société déposant en France apparaît parfois aussi dans la collecte européenne (même LEI) : on garde la française.
+    fr_lei = {c["id"].split("-", 1)[1] for c in fr}
+    eu = [c for c in eu if c["id"].split("-", 1)[1] not in fr_lei]
     fr = fr + eu + intl
     fields = [k for k, _, _ in FIELDS]
 
