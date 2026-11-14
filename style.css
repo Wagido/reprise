@@ -436,7 +436,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .checks + .kpis { margin-top: 14px; }
 
 /* ---------- Onglet Analyse : fiche toujours visible à droite sur grand écran ---------- */
-@media (min-width: 1000px) {
+@media (min-width: 880px) {
   body[data-view="list"] main, body[data-view="list"] #filters, body[data-view="pme"] main { margin-right: min(48vw, 780px); }
   body[data-view="list"] .detail, body[data-view="pme"] .detail { top: var(--hdr, 110px); left: auto; width: min(48vw, 780px); background: transparent; z-index: 4; }
   body[data-view="list"] .detail-inner, body[data-view="pme"] .detail-inner { box-shadow: none; border-left: 1px solid var(--line); width: 100%; }
@@ -473,7 +473,7 @@ body { font-size: 13px; }
 .top .tabs button[aria-selected="true"] { background: none; color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .top .sub { margin-left: auto; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
 .theme-btn { flex: none; width: 30px; height: 30px; border-radius: 7px; font-size: 14px; }
-@media (max-width: 1100px) { .top .sub { display: none; } .theme-btn { margin-left: auto; } }
+@media (max-width: 1640px) { .top .sub { display: none; } .theme-btn { margin-left: auto; } }
 @media (max-width: 760px) {
   .top { flex-wrap: wrap; padding: 6px 12px 0; gap: 6px 10px; }
   .top .tabs { order: 5; flex: 1 1 100%; height: 40px; }
@@ -522,7 +522,7 @@ th { height: 30px; font-size: 11px; background: var(--bg); }
 .tdb-list[open] summary { margin-bottom: 8px; }
 
 /* Panneau d'analyse à droite, plus étroit */
-@media (min-width: 1000px) {
+@media (min-width: 880px) {
   body[data-view="list"] main, body[data-view="list"] #filters, body[data-view="pme"] main { margin-right: min(42vw, 620px); }
   body[data-view="list"] .detail, body[data-view="pme"] .detail { width: min(42vw, 620px); }
 }
@@ -611,3 +611,8 @@ h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .banc-tbl th.grp, .banc-tbl td.grp { border-left: 2px solid var(--line); }
 .banc-tbl tbody tr { cursor: pointer; }
 .banc-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; }
+.top .tabs { flex-wrap: nowrap; }
+@media (min-width: 880px) and (max-width: 1100px) {
+  body[data-view="list"] .detail, body[data-view="pme"] .detail { width: 44vw; }
+  body[data-view="list"] main, body[data-view="list"] #filters, body[data-view="pme"] main { margin-right: 44vw; }
+}

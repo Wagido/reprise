@@ -49,7 +49,7 @@ const Analyse = (() => {
     const ebitda = ok(ebit) && ok(da) ? ebit + da : null;
     const pretax = g("pretax"), tax = g("tax");
     const niTotal = ok(g("net_income_total")) ? g("net_income_total") : ok(pretax) && ok(tax) ? pretax - tax : null;
-    const ni = g("net_income");
+    const ni = ok(g("net_income")) ? g("net_income") : niTotal;
     let t = ok(tax) && ok(pretax) && pretax > 0 ? tax / pretax : null;
     // Taux d'impôt normatif : taux effectif moyen des 3 derniers exercices (borné à 0–50 %).
     const tj = [i, i - 1, i - 2].map((j) => { const x = g("tax", j), p = g("pretax", j); return ok(x) && ok(p) && p > 0 ? x / p : null; })

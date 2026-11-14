@@ -228,6 +228,27 @@ def main():
                 values[f] = row
         if "revenue" not in values:
             continue
+        # Résultat net aberrant (valeur publiée dans une mauvaise unité, ex. 0,004 M$ pour un bénéfice
+        # de plusieurs milliards) : écarté quand il est infime face au résultat d'exploitation.
+        for f in ("net_income", "net_income_total"):
+            row = values.get(f)
+            if not row:
+                continue
+            for j, v in enumerate(row):
+                rev = values["revenue"][j]
+                ebit = (values.get("operating_income") or [None] * len(row))[j]
+                if v is not None and rev and rev > 0 and ebit is not None and abs(ebit) > 0.02 * rev and abs(v) < 1e-4 * rev:
+                    row[j] = None
+        # Résultat net manquant au dernier exercice : bénéfice par action × nombre d'actions (cours collectés).
+        px_c = (prices.get("us", {}) if c["country"] == "US" else prices.get("fr", {})).get(c["id"])
+        eps_row = values.get("eps")
+        if px_c and px_c[1] and eps_row:
+            j = len(years) - 1
+            while j >= 0 and values["revenue"][j] is None:
+                j -= 1
+            ni_row = values.setdefault("net_income", [None] * len(years))
+            if j >= 0 and ni_row[j] is None and eps_row[j] is not None:
+                ni_row[j] = round(eps_row[j] * px_c[1] / 1e6, 3)
         # Dividende par action sur longue période (SEC) ; sinon, années collectées (ESEF), avec un
         # nombre d'actions approché par résultat net / bénéfice par action pour repérer les divisions.
         dh = c.get("div_hist")

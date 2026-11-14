@@ -66,9 +66,10 @@ function metrics(c, i, native = false) {
   const lt = g("debt_lt"), st = g("debt_st"), tot = g("debt_total");
   const debt = ok(lt) || ok(st) ? (lt || 0) + (st || 0) : tot;
   const cash = g("cash");
-  const netDebt = ok(debt) && ok(cash) ? debt - cash : null;
+  // Même définition que la fiche (Vernimmen, IFRS 16) : dettes financières + locations − trésorerie − placements.
+  const netDebt = ok(debt) && ok(cash) ? debt + (g("leases") || 0) - cash - (g("st_invest") || 0) : null;
   const equity = g("equity");
-  const ni = g("net_income");
+  const ni = ok(g("net_income")) ? g("net_income") : g("net_income_total");
   const recv = g("receivables"), inv = g("inventory"), pay = g("payables");
   const rev3 = g("revenue", i - 3);
   const growth = ok(rev) && ok(rev3) && rev3 > 0 && rev > 0 ? Math.pow(rev / rev3, 1 / 3) - 1 : null;
@@ -187,9 +188,9 @@ function compute(ignoreSector = false) {
     if (!r.c[key]) {
       const p = Analyse.piotroski(r.c, i);
       const fq = Analyse.figures(r.c, i);
-      r.c[key] = { fs: p.known >= 8 ? Math.round(p.score * 9 / p.known) : null, z: fq.zScore, per: fq.per, evx: fq.evEbitda };
+      r.c[key] = { fs: p.known >= 8 ? Math.round(p.score * 9 / p.known) : null, z: fq.zScore, per: fq.per, evx: fq.evEbitda, roce: fq.roce };
     }
-    r.fs = r.c[key].fs; r.z = r.c[key].z; r.per = r.c[key].per; r.evx = r.c[key].evx;
+    r.fs = r.c[key].fs; r.z = r.c[key].z; r.per = r.c[key].per; r.evx = r.c[key].evx; r.roce = r.c[key].roce;
   }
   score(out);
   return out;
@@ -209,7 +210,7 @@ const COLS = [
   { extra: true, hib: true, key: "conversion", label: "Conv. cash", get: (r) => r.m.conversion, fmt: (r) => pct(r.m.conversion, true) },
   { extra: true, key: "netDebt", label: "Dette nette M€", get: (r) => r.m.netDebt, fmt: (r) => money(r.m.netDebt) },
   { hib: false, key: "leverage", label: "DN/EBITDA", get: (r) => r.m.leverage, fmt: (r) => mult(r.m.leverage) },
-  { hib: true, key: "roce", label: "ROCE", get: (r) => r.m.roce, fmt: (r) => pct(r.m.roce, true) },
+  { hib: true, key: "roce", label: "ROCE", title: "ROCE courant après impôt, sur capitaux employés moyens (comme dans la fiche)", get: (r) => r.roce, fmt: (r) => pct(r.roce, true) },
   { extra: true, hib: false, key: "bfrDays", label: "BFR", get: (r) => r.m.bfrDays, fmt: (r) => days(r.m.bfrDays) },
   { hib: false, key: "per", label: "PER", get: (r) => r.per, fmt: (r) => (ok(r.per) ? nf1.format(r.per) : '<span class="na">—</span>') },
   { extra: true, hib: false, key: "evx", label: "VE/EBE", get: (r) => r.evx, fmt: (r) => (ok(r.evx) ? nf1.format(r.evx) + "×" : '<span class="na">—</span>') },
@@ -699,7 +700,7 @@ function onFilter() {
 const SPACE_OF = { banc: "invest", list: "invest", pick: "invest", nuages: "invest", tdb: "invest", sectors: "invest", compare: "invest", pme: "reprise", ptdb: "reprise", lbo: "reprise", help: "method" };
 const lastView = { invest: "tdb", reprise: "ptdb", method: "help" };
 // Sur grand écran, l'onglet Analyse garde la fiche ouverte à droite (méthode tant qu'aucune société n'est choisie).
-const splitMode = () => (state.view === "list" || state.view === "pme") && window.innerWidth >= 1000;
+const splitMode = () => (state.view === "list" || state.view === "pme") && window.innerWidth >= 880;
 function showMethodPanel() {
   $("detailBody").innerHTML = `<div class="card method-panel"><details open><summary><b>La méthode : le plan d'analyse en 4 étapes</b><span class="pm"></span></summary>${Analyse.methodHtml}</details>
     <p class="note">Cliquer une société ${state.view === "pme" ? "sur la carte ou dans le tableau" : "dans le tableau"} pour afficher son analyse ici.</p></div>`;
@@ -832,6 +833,7 @@ async function init() {
   const date = new Date(meta.generated).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const zc = meta.zone_counts || { FR: meta.counts.FR, US: meta.counts.US };
   const total = Object.values(zc).reduce((x, y) => x + y, 0);
+  document.querySelector(".brand").title = `${nf0.format(total)} sociétés cotées · données du ${date}`;
   $("dataInfo").textContent = `${nf0.format(total)} sociétés cotées (France ${nf0.format(zc.FR || 0)}, USA ${nf0.format(zc.US || 0)}, reste du monde ${nf0.format(total - (zc.FR || 0) - (zc.US || 0))}) · données du ${date}`;
   if (meta.zones) $("country").innerHTML = `<option value="">Toutes zones</option>` +
     Object.entries(meta.zones).filter(([k]) => zc[k]).map(([k, v]) => `<option value="${k}">${esc(v)} (${nf0.format(zc[k])})</option>`).join("");
