@@ -804,18 +804,7 @@ function bind() {
     clearTimeout(rz);
     rz = setTimeout(() => { if (["list", "pme", "tdb", "ptdb"].includes(state.view)) setView(state.view); }, 150);
   });
-  // Filtres secondaires repliés derrière « Plus de filtres » ; le bouton compte ceux qui sont actifs.
-  const moreCount = (box) => {
-    const n = [...box.querySelectorAll("[data-more] input")].filter((x) => (x.type === "checkbox" ? x.checked : x.value !== "")).length;
-    box.querySelector(".more-n").textContent = n ? n : "";
-  };
-  document.querySelectorAll(".more-btn").forEach((b) => {
-    const box = b.closest(".filters");
-    b.onclick = () => { const o = box.classList.toggle("open"); b.setAttribute("aria-expanded", String(o)); syncHeader(); };
-    box.addEventListener("input", () => moreCount(box));
-    box.addEventListener("change", () => moreCount(box));
-    moreCount(box);
-  });
+
 }
 
 // Exercice par défaut : le plus récent pour lequel au moins 60 % des sociétés

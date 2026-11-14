@@ -40,8 +40,9 @@ const TDB = (() => {
   }
 
   // Un panneau : D = [{ id, f, s }], s = verdicts des 4 étapes ; réutilisé par la vue générale des PME.
-  function panel(p, D = data, only = onlyAll, h = hot, H = 300) {
-    const W = 460, L = 46, R = 10, T = 10, B = 34;
+  // size = { W, H } : dimensions réelles du graphique en pixels (le texte garde sa taille sur tout écran).
+  function panel(p, D = data, only = onlyAll, h = hot, size = { W: 460, H: 300 }) {
+    const W = size.W, H = size.H, L = 52, R = 12, T = 10, B = 36;
     const tx = (v) => (p.x.log ? Math.log10(v) : v), ty = (v) => (p.y.log ? Math.log10(v) : v);
     const sx = (v) => L + (tx(Math.min(p.x.max, Math.max(p.x.min, v))) - tx(p.x.min)) / (tx(p.x.max) - tx(p.x.min)) * (W - L - R);
     const sy = (v) => H - B - (ty(Math.min(p.y.max, Math.max(p.y.min, v))) - ty(p.y.min)) / (ty(p.y.max) - ty(p.y.min)) * (H - T - B);
@@ -88,27 +89,28 @@ const TDB = (() => {
       <p class="note pnote">${p.note}</p></div>`;
   }
 
-  // Hauteur des graphiques pour que les 4 tiennent dans l'écran (2 × 2) sur ordinateur.
-  function fitH(box) {
-    const two = window.innerWidth > 900;
-    if (!two) return 300;
-    const top = box.getBoundingClientRect().top + window.scrollY;
-    const avail = (window.innerHeight - top - 150) / 2;      // barre d'outils, titres et liste repliée
-    const cw = box.clientWidth / 2 - 40;
-    return Math.round(Math.max(200, Math.min(360, 460 * avail / Math.max(200, cw))));
+  // Taille réelle des graphiques, en pixels : les 4 tiennent dans l'écran (2 × 2) sur ordinateur.
+  function fit(box) {
+    const w = box.clientWidth || 900;
+    if (window.innerWidth <= 900) return { W: Math.max(280, w - 24), H: 300 };
+    const top = box.getBoundingClientRect().top;
+    const list = 50, card = 2 * 62, gaps = 24;                           // liste repliée, titre et note de chaque carte
+    const H = Math.round(Math.max(200, Math.min(480, (window.innerHeight - top - list - card - gaps) / 2)));
+    return { W: Math.round((w - 10) / 2 - 24), H };
   }
+  const fitH = fit;
 
   function render() {
     build();
     const good = data.filter((d) => d.all).sort((a, b) => (b.f.roce || 0) - (a.f.roce || 0));
-    const Hh = fitH($("tdbOut"));
     $("tdbOut").innerHTML = `
-      <div class="tdb-bar">
-        <label class="check"><input type="checkbox" id="tdbAll" ${onlyAll ? "checked" : ""}> Seulement les bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(data.length)})</label>
-        <span class="cnt" title="Verdict de chaque étape, mêmes règles que la synthèse des fiches"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>
+      <div class="card tdb-intro"><h3>Le plan en 4 étapes, pour toutes les sociétés</h3>
+        <p class="note">Chaque point est une société (filtres du haut appliqués, exercice ${$("year").value}). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
+          <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>. Survoler un point montre la société dans les 4 graphiques.</p>
+        <label class="check tdb-toggle"><input type="checkbox" id="tdbAll" ${onlyAll ? "checked" : ""}> N'afficher que les sociétés bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(data.length)})</label>
         <div id="tdbHot" class="tdb-hot">${hotLine()}</div>
       </div>
-      <div class="tdb-grid">${PANELS.map((pn) => panel(pn, data, onlyAll, hot, Hh)).join("")}</div>
+      <div class="tdb-grid" id="tdbGrid"></div>
       <details class="card tdb-list"><summary><b>Bonnes dans les 4 étapes (${nf0.format(good.length)})</b> <small>— classées par ROCE après IS · ouvrir la liste</small></summary>
         <div class="tablewrap"><table><thead><tr><th class="l">Société</th><th class="l">Secteur</th><th>CA M€</th><th>Croissance</th><th>Marge d'EBE</th><th>BFR</th><th>Dette nette / EBE</th><th>ROCE</th><th>PER</th></tr></thead><tbody>
         ${good.slice(0, 100).map((d) => `<tr data-k="${data.indexOf(d)}"><td class="l">${esc(d.c.n)}<span class="flag">${esc(d.c.c)} · ${esc(d.c.t || "")}</span></td>
@@ -116,6 +118,9 @@ const TDB = (() => {
           <td>${ok(d.f.growth) ? P(d.f.growth) : "—"}</td><td>${ok(d.f.ebitdaMargin) ? P(d.f.ebitdaMargin) : "—"}</td><td>${ok(d.f.bfrDays) ? nf0.format(d.f.bfrDays) + " j" : "—"}</td>
           <td>${ok(d.f.netDebt) && d.f.netDebt <= 0 ? "trésorerie nette" : ok(d.f.ndEbitda) ? X(d.f.ndEbitda) : "—"}</td><td>${ok(d.f.roce) ? P(d.f.roce) : "—"}</td><td>${ok(d.f.per) ? nf1.format(d.f.per) : "—"}</td></tr>`).join("")}
         </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${good.length}.</p>` : ""}</details>`;
+    // Taille mesurée une fois l'encadré affiché : les graphiques remplissent la place qui reste.
+    const size = fit($("tdbGrid"));
+    $("tdbGrid").innerHTML = PANELS.map((pn) => panel(pn, data, onlyAll, hot, size)).join("");
   }
 
   function hotLine() {
@@ -150,5 +155,5 @@ const TDB = (() => {
     });
   }
 
-  return { mount, render, panel, fitH, STATUS };
+  return { mount, render, panel, fit, fitH, STATUS };
 })();

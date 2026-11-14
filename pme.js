@@ -242,19 +242,21 @@ const PME = (() => {
     tdb = list.map((o, k) => { const s = stepColors(o); return { o, k, id: o.siren, f: o, s, all: s.every((x) => x === "green") }; });
     const good = tdb.filter((d) => d.all).sort((a, b) => (b.o.me || 0) - (a.o.me || 0));
     $("pmeInfo").textContent = `${nf0.format(tdb.length)} PME sur ${nf0.format(data.list.length)} (CA de ${data.meta.ca_min / 1e6} à ${data.meta.ca_max / 1e6} M€, comptes publics)`;
-    const Hh = TDB.fitH($("ptdbOut"));
     $("ptdbOut").innerHTML = `
-      <div class="tdb-bar">
-        <label class="check"><input type="checkbox" id="ptdbAll" ${tOnly ? "checked" : ""}> Seulement les bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(tdb.length)})</label>
-        <span class="cnt" title="Verdict de chaque étape, mêmes règles que la synthèse des fiches. Les comptes publics des PME ne donnent ni l'actif économique ni le ROCE : les graphiques utilisent les ratios publiés (BCE / INPI)."><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>
+      <div class="card tdb-intro"><h3>Le plan en 4 étapes, pour toutes les PME</h3>
+        <p class="note">Chaque point est une PME (filtres ci-dessus appliqués). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
+          <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span>. Les comptes publics des PME ne donnent ni l'actif économique ni le ROCE : les graphiques utilisent les ratios publiés (BCE / INPI).</p>
+        <label class="check tdb-toggle"><input type="checkbox" id="ptdbAll" ${tOnly ? "checked" : ""}> N'afficher que les PME bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(tdb.length)})</label>
         <div id="ptdbHot" class="tdb-hot">${hotLine()}</div>
       </div>
-      <div class="tdb-grid">${PANELS.map((pn) => TDB.panel(pn, tdb, tOnly, tHot, Hh)).join("")}</div>
+      <div class="tdb-grid" id="ptdbGrid"></div>
       <details class="card tdb-list"><summary><b>Bonnes dans les 4 étapes (${nf0.format(good.length)})</b> <small>— classées par marge d'EBE · ouvrir la liste</small></summary>
         <div class="tablewrap"><table><thead><tr><th class="l">Société</th><th class="l">NAF</th><th>CA</th><th>Croissance</th><th>Marge d'EBE</th><th>BFR</th><th>Remb. (ans)</th><th>Autonomie</th><th>Marge nette</th></tr></thead><tbody>
         ${good.slice(0, 100).map((d) => `<tr data-k="${d.k}"><td class="l">${esc(d.o.n)}<span class="flag">${esc(d.o.com || "")} (${esc(d.o.dep || "")})</span></td><td class="l">${esc(d.o.naf || "")}</td>
           <td>${K(d.o.ca)}</td><td>${pct(d.o.g, true)}</td><td>${P1(d.o.me)}</td><td>${J(d.o.bfrj)}</td><td>${ok(d.o.remb) ? (d.o.remb < 0 ? "trésorerie nette" : nf1.format(d.o.remb)) : "—"}</td><td>${P1(d.o.auto)}</td><td>${P1(d.o.nm)}</td></tr>`).join("")}
         </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${nf0.format(good.length)}.</p>` : ""}</details>`;
+    const size = TDB.fit($("ptdbGrid"));
+    $("ptdbGrid").innerHTML = PANELS.map((pn) => TDB.panel(pn, tdb, tOnly, tHot, size)).join("");
   }
   function hotLine() {
     const d = tdb.find((x) => x.id === tHot);
