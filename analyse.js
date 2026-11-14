@@ -80,6 +80,14 @@ const Analyse = (() => {
       capexDa: ok(g("capex")) && ok(da) && da > 0 ? g("capex") / da : null,
       capexRev: ok(g("capex")) && ok(rev) && rev > 0 ? g("capex") / rev : null,
       mcap: g("market_cap"),
+      // Fiche 2 : état de l'outil industriel = immobilisations nettes / brutes.
+      wear: ok(g("ppe")) && ok(g("ppe_gross")) && g("ppe_gross") > 0 ? g("ppe") / g("ppe_gross") : null,
+      // Fiche 3 : ratios de liquidité.
+      liqGen: ok(CA) && ok(CL) && CL > 0 ? CA / CL : null,
+      liqRed: ok(CA) && ok(CL) && CL > 0 ? (CA - (g("inventory") || 0)) / CL : null,
+      liqImm: ok(cash) && ok(CL) && CL > 0 ? cash / CL : null,
+      // Fiche 4 : intensité capitalistique (inverse de la rotation) et levier financier.
+      intensity: ok(ae) && ok(rev) && rev > 0 ? ae / rev : null,
       ev: ok(g("market_cap")) && ok(netDebt) ? g("market_cap") + netDebt : null,
       evEbitda: ok(g("market_cap")) && ok(netDebt) && ok(ebitda) && ebitda > 0 ? (g("market_cap") + netDebt) / ebitda : null,
       growth: (() => {
@@ -432,7 +440,9 @@ const Analyse = (() => {
       if (lev > 1.05) {
         const pm = 1 - 1 / lev;
         levTxt = `Levier opérationnel observé ≈ ${nf1.format(lev)} : quand le CA varie de 1 %, le résultat d'exploitation varie d'environ ${nf1.format(lev)} %.
-          Cela situe le point mort vers <b>${nf0.format(pm * 100)} % du CA</b> (marge de sécurité ≈ ${nf0.format((1 - pm) * 100)} %). ${pm > 0.8 ? "Entreprise proche de son point mort : bénéfice fragile." : pm > 0.6 ? "Sensibilité moyenne à la conjoncture." : "Bénéfice plutôt stable, loin du point mort."}`;
+          Comme levier = marge sur coûts variables / (marge sur coûts variables − coûts fixes), le point mort se situe vers
+          <b>${nf0.format(pm * 100)} % du CA</b>${ok(f.rev) ? ` (≈ ${M(pm * f.rev)} M ${esc(c.cur)})` : ""} ; position par rapport au point mort
+          (CA / point mort − 1) ≈ <b>${nf0.format(1 / (lev - 1) * 100)} %</b>. ${pm > 0.8 ? "Entreprise proche de son point mort : bénéfice fragile." : pm > 0.6 ? "Sensibilité moyenne à la conjoncture." : "Bénéfice plutôt stable, loin du point mort."}`;
       } else {
         levTxt = `Levier opérationnel observé ≈ ${nf1.format(lev)} : le résultat ne suit pas mécaniquement le CA (coûts très variables, ou effets prix et non récurrents). Point mort non estimable ainsi.`;
       }
@@ -454,6 +464,10 @@ const Analyse = (() => {
     if (!ok(r)) return "—";
     return r > 1.1 ? "capacité" : r >= 0.9 ? "maintien" : "retrait";
   }
+  function wearTxt(w) {
+    if (!ok(w)) return "brut non publié";
+    return w > 0.6 ? "outil récent" : w >= 0.4 ? "outil à mi-vie" : "outil vieillissant, réinvestissement à prévoir";
+  }
   function step2(c, f, i, st) {
     const ys = state.meta.years;
     const fs = ys.map((_, j) => figures(c, j));
@@ -466,6 +480,11 @@ const Analyse = (() => {
       ${row("Fournisseurs (jours d'achats)", (x) => D(x.payDays))}
       ${row("<b>BFR (jours de CA)</b>", (x) => `<b>${D(x.bfrDays)}</b>`)}
       ${row("Croissance du CA", (x) => P(x.growth1))}
+      ${row(`BFR (M ${esc(c.cur)})`, (x) => M(x.bfr))}
+      ${idx.length > 1 ? `<tr><td class="l">Variation du BFR</td>${idx.map((j, k) => {
+        const p = k > 0 ? fs[idx[k - 1]].bfr : null, v = fs[j].bfr;
+        return `<td>${ok(p) && ok(v) ? `<span class="${v - p > 0 ? "neg" : "pos"}">${v - p > 0 ? "+" : ""}${M(v - p)}</span>` : "—"}</td>`;
+      }).join("")}</tr>` : ""}
     </tbody></table></div>`;
     // BFR qui grossit plus vite que le CA ?
     const first = idx.find((j) => ok(fs[j].bfrDays)), lastJ = [...idx].reverse().find((j) => ok(fs[j].bfrDays));
@@ -501,9 +520,10 @@ const Analyse = (() => {
       ${kpi("Capex en % du CA", P(f.capexRev), bench(st, "capexRev", f.capexRev, P))}
       ${kpi("Capex / amortissements", X(f.capexDa) + `<small> ${capexNature(f.capexDa)}</small>`)}
       ${kpi("Rotation de l'actif économique", X(f.rotation), bench(st, "rotation", f.rotation, X))}
+      ${kpi("État de l'outil (immo. nettes / brutes)", P(f.wear), `<small class="bench">${wearTxt(f.wear)}</small>`)}
     </div>`;
     return step(2, "Les investissements", "immobilisations et BFR", kpis + economicBalance(f, c.cur) +
-      card("Besoin en fonds de roulement", "", bfrTable, bfrMsg + " Le BFR à la clôture n'est qu'une photo : on le lit en tendance.") +
+      card("Besoin en fonds de roulement", "", bfrTable, bfrMsg + " Une hausse du BFR est un besoin de financement, une baisse libère de la trésorerie. Le BFR à la clôture n'est qu'une photo : on le lit en tendance. Ratios calculés sur le CA hors taxes (la TVA n'est pas publiée).") +
       card("Politique d'investissement", `M ${c.cur}`, invTable,
         (invMsg ? invMsg + " " : "") + "Capex supérieurs aux amortissements : investissements de capacité ; égaux : maintien ; inférieurs : retrait."));
   }
@@ -526,9 +546,38 @@ const Analyse = (() => {
       <div>${light(!ok(fcfAfter) ? "grey" : fcfAfter >= 0 ? "green" : "red")}<b>Flux disponible après frais financiers : ${M(fcfAfter)}</b>
         <span>Positif : l'exploitation finance ses investissements et ses intérêts ; négatif : il faut s'endetter ou augmenter le capital.</span></div>
     </div>`;
+    const ys = state.meta.years;
+    const fs = ys.map((_, j) => figures(c, j));
+    const idx = ys.map((_, j) => j).filter((j) => ok(fs[j].cfo));
+    let table = "";
+    if (idx.length) {
+      const cell = (fn) => idx.map((j) => `<td>${fn(fs[j], j)}</td>`).join("");
+      const dBfr = (j) => (j > 0 && ok(fs[j].bfr) && ok(fs[j - 1].bfr) ? fs[j].bfr - fs[j - 1].bfr : null);
+      table = `<div class="tablewrap"><table><thead><tr><th class="l"></th>${idx.map((j) => `<th>${ys[j]}</th>`).join("")}</tr></thead><tbody>
+        <tr><td class="l">Capacité d'autofinancement (CAF)</td>${cell((x, j) => M(ok(dBfr(j)) ? x.cfo + dBfr(j) : null))}</tr>
+        <tr><td class="l">− variation du BFR</td>${cell((x, j) => M(ok(dBfr(j)) ? -dBfr(j) : null))}</tr>
+        <tr><td class="l"><b>= Flux de trésorerie d'exploitation</b></td>${cell((x) => `<b>${M(x.cfo)}</b>`)}</tr>
+        <tr><td class="l">− investissements industriels</td>${cell((x) => M(ok(x.capex) ? -x.capex : null))}</tr>
+        <tr><td class="l"><b>= Flux disponible</b></td>${cell((x) => `<b>${M(x.fcf)}</b>`)}</tr>
+        <tr><td class="l">− dividendes</td>${cell((x) => M(ok(x.div) ? -x.div : null))}</tr>
+        <tr><td class="l">+ augmentations de capital − rachats</td>${cell((x) => M((x.issue || 0) - (x.buyback || 0)))}</tr>
+        <tr><td class="l"><b>Dette nette en fin d'année</b></td>${cell((x) => `<b>${M(x.netDebt)}</b>`)}</tr>
+      </tbody></table></div>`;
+    }
+    const liq = (v) => (ok(v) ? nf1.format(v) : "—");
+    const liquidity = `<div class="kpis">
+      ${kpi("Liquidité générale", liq(f.liqGen), `<small class="bench">actif circulant / passif à court terme ; > 1 attendu</small>`)}
+      ${kpi("Liquidité réduite", liq(f.liqRed), `<small class="bench">hors stocks</small>`)}
+      ${kpi("Liquidité immédiate", liq(f.liqImm), `<small class="bench">trésorerie / passif à court terme</small>`)}
+      ${kpi("Levier financier (D / CP)", ok(f.de) ? nf1.format(f.de) : "—")}
+    </div>`;
     return step(3, "Le financement", "autofinancement, capitaux propres, dette", card("Repères de solvabilité et de liquidité", "", checks,
-      "Repères usuels de l'analyse financière, à moduler selon le secteur et la régularité des flux.") +
-      cashFlow(f, c.cur) + financialBalance(f, c.cur));
+      "Repères usuels de l'analyse financière : les connaître, mais toujours les replacer dans le contexte du secteur.") +
+      (table ? card("Approche dynamique : tableau de financement", `M ${c.cur}`, table,
+        "La CAF est reconstituée à partir des flux publiés (flux d'exploitation + variation du BFR). Les investissements sont financés d'abord par le flux disponible, puis, compte tenu de la distribution, par augmentation de capital ou endettement.") : "") +
+      cashFlow(f, c.cur) +
+      card("Approche statique : liquidité", "", liquidity, "Le risque d'illiquidité s'apprécie en comparant les échéances des dettes à la vitesse de transformation des actifs en trésorerie.") +
+      financialBalance(f, c.cur));
   }
 
   // ---------- Étape 4 : la rentabilité ----------
@@ -539,6 +588,7 @@ const Analyse = (() => {
     const kpis = `<div class="kpis">
       ${kpi("ROCE après IS", P(f.roce), bench(st, "roce", f.roce, P))}
       ${kpi("Rentabilité des capitaux propres", P(f.roe), bench(st, "roe", f.roe, P))}
+      ${kpi("Intensité capitalistique", ok(f.intensity) ? nf1.format(f.intensity) : "—", `<small class="bench">actif économique / CA = 1 / rotation</small>`)}
       ${kpi("Coût du capital (hypothèse)", `<input class="param" type="number" step="0.5" min="0" max="30" data-param="wacc" value="${params.wacc}"> %`)}
       ${kpi("ROCE − coût du capital", `<span class="${ok(spread) ? (spread >= 0 ? "pos" : "neg") : ""}">${ok(spread) ? (spread >= 0 ? "+" : "") + nf1.format(spread * 100) + " pts" : "—"}</span>`)}
       ${kpi(`Création de valeur ${state.meta.years[i]} (M ${esc(c.cur)})`, `<span class="${ok(eva) ? (eva >= 0 ? "pos" : "neg") : ""}">${M(eva)}</span>`)}
@@ -640,8 +690,8 @@ const Analyse = (() => {
     return `<div class="card synth"><h3>Synthèse ${state.meta.years[i]} <small>— plan d'analyse en 4 étapes</small></h3>
       <div class="synth-grid">${verdict.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
       <div class="synth-concl">
-        <div>${light(solv[0])}<b>Solvabilité</b> <span>${solv[1]}</span></div>
-        <div>${light(val[0])}<b>Création de valeur</b> <span>${val[1]}</span></div>
+        <div>${light(val[0])}<b>Du point de vue des actionnaires</b> <span>${val[1]} ${ok(f.roe) ? `Rentabilité des capitaux propres ${P(f.roe)}${ok(f.roce) && ok(f.roe) ? `, dont ${f.roe > f.roce ? "un effet de levier positif" : "un effet de levier négatif ou nul"}` : ""}.` : ""}</span></div>
+        <div>${light(solv[0])}<b>Du point de vue des prêteurs</b> <span>${solv[1]} ${ok(f.liqGen) ? `Liquidité générale ${nf1.format(f.liqGen)}.` : ""}</span></div>
       </div>
       <p class="note">Comparaison avec ${st.n} sociétés du secteur « ${esc(state.meta.sectors[c.s])} » (France et USA). Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
       <details class="method"><summary>Le plan d'analyse en 4 étapes</summary>${METHOD_HTML}</details></div>`;
@@ -666,15 +716,19 @@ const Analyse = (() => {
       <li><b>Les investissements</b> nécessaires : le BFR, analysé en jours (clients, stocks, fournisseurs) et toujours en évolution,
         ainsi que les immobilisations. Un investissement supérieur aux amortissements est un investissement de <b>capacité</b>,
         égal un investissement de <b>maintien</b>, inférieur un <b>retrait</b>.</li>
-      <li><b>Le financement</b> : le tableau de flux est l'outil central. Deux repères : <b>dette nette / EBE inférieure à environ 3</b>
-        et <b>résultat d'exploitation / frais financiers supérieur à environ 3</b>. Il faut aussi regarder la liquidité
-        (échéances des dettes face à celles des actifs).</li>
+      <li><b>Le financement</b>, en deux approches. En <b>dynamique</b>, le tableau de flux est l'outil central : CAF − variation du BFR
+        = flux d'exploitation, − investissements = flux disponible, puis distribution, augmentation de capital ou endettement.
+        En <b>statique</b>, le bilan : <b>dette nette / EBE inférieure à environ 3</b>, <b>résultat d'exploitation / frais financiers
+        supérieur à environ 3</b>, et la liquidité (générale, réduite, immédiate : échéances des dettes face à celles des actifs).</li>
       <li><b>La rentabilité</b> : ROCE = marge × rotation, puis l'effet de levier. Le levier ne crée pas de valeur :
         il augmente le ROE mais aussi le risque. Seule une bonne rentabilité économique dure.</li>
     </ol>
-    <p><b>Conclusion</b> : solvabilité, puis <b>création de valeur</b>, c'est-à-dire ROCE comparé au <b>coût du capital</b>.
+    <p><b>Conclusion</b>, rédigée sous les deux angles : « <b>du point de vue des actionnaires</b> » (création de valeur, c'est-à-dire
+    ROCE comparé au <b>coût du capital</b>) et « <b>du point de vue des prêteurs</b> » (solvabilité et liquidité).
     Pour une reprise, la valeur vient ensuite d'un <b>multiple de l'EBE ou du résultat d'exploitation</b>, moins la dette nette.
     Le montage en LBO dépend de la capacité de la cible à rembourser sa dette avec son flux de trésorerie disponible.</p>
+    <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
+    = résultat d'exploitation × (1 − IS) / actif économique ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
     <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents
     du secteur) et <b>par rapport à des normes</b> (les repères ci-dessus).</p>`;
 
