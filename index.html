@@ -13,11 +13,11 @@
 <link rel="stylesheet" href="style.css?v=dev">
 <script>
   // Thème : clair par défaut, sombre si choisi (mémorisé dans le navigateur).
-  // Thème choisi par l'utilisateur, sinon celui du système (le navigateur n'a alors pas à forcer un mode sombre).
+  // Thème : clair par défaut ; sombre seulement si l'utilisateur le choisit (bouton ☾, mémorisé).
   (function () {
-    var sys = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light", t = null;
+    var t = null;
     try { t = localStorage.getItem("reprise.theme"); } catch (e) { /* ignoré */ }
-    document.documentElement.dataset.theme = t || sys;
+    document.documentElement.dataset.theme = t === "dark" ? "dark" : "light";
   })();
 </script>
 </head>
