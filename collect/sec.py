@@ -13,7 +13,8 @@ import os
 import sys
 
 from common import CACHE, get_json, write_json
-from concepts import US_GAAP, all_tags, resolve
+from concepts import PER_SHARE_TAGS, US_GAAP, all_tags, resolve
+from dividends import history as dividend_history
 
 FRAMES = "https://data.sec.gov/api/xbrl/frames/us-gaap/{tag}/USD/{period}.json"
 TICKERS = "https://www.sec.gov/files/company_tickers_exchange.json"
@@ -65,7 +66,7 @@ def collect(years, max_sic=None, log=print):
             i += 1
             period = f"CY{year}" if kind == "D" else f"CY{year}Q4I"
             url = FRAMES.format(tag=tag, period=period)
-            if tag.startswith("EarningsPerShare"):
+            if tag in PER_SHARE_TAGS:
                 url = url.replace("/USD/", "/USD-per-shares/")
             frame = get_json(url, cache_name=f"sec/frames/{tag}_{period}.json.gz",
                              max_age_days=7 if year in recent else None, min_interval=0.12)
@@ -107,6 +108,15 @@ def collect(years, max_sic=None, log=print):
         for y, v in floats.get(old_cik, {}).items():
             floats.setdefault(new_cik, {}).setdefault(y, v)
 
+    div_hist = dividend_frames(years[-1], recent, log)
+    for new_cik, old_cik in SUCCESSORS.items():
+        if old_cik in div_hist:
+            old, new = div_hist[old_cik], div_hist.setdefault(new_cik, {})
+            for key, series in old.items():
+                merged = dict(series)
+                merged.update(new.get(key, {}))
+                new[key] = merged
+
     tickers = get_json(TICKERS, cache_name="sec/company_tickers_exchange.json.gz", max_age_days=7)
     listing = {}
     for cik, name, ticker, exchange in tickers["data"]:
@@ -136,8 +146,12 @@ def collect(years, max_sic=None, log=print):
                 save_sic(sic_cache)
         sic, sic_desc = sic_cache.get(cik, [None, None])
 
+        h = div_hist.get(cik)
+        dh = dividend_history(h.get("paid"), h.get("declared"), h.get("shares"), h.get("q_paid"), h.get("q_declared")) if h else None
+
         companies.append({
             "id": f"US-{cik}",
+            "div_hist": dh,
             "name": names.get(cik, short),
             "country": "US",
             "ticker": ticker,
@@ -153,6 +167,35 @@ def collect(years, max_sic=None, log=print):
     save_sic(sic_cache)
     log(f"SEC : {len(companies)} sociétés cotées avec des comptes")
     return companies
+
+
+# Historique long du dividende par action : depuis 2007, début des déclarations XBRL.
+DIV_FIRST_YEAR = 2007
+DIV_TAGS = {"paid": "CommonStockDividendsPerShareCashPaid", "declared": "CommonStockDividendsPerShareDeclared"}
+
+
+def dividend_frames(last_year, recent, log=print):
+    """{cik: {"paid"|"declared": {année: dps}, "q_paid"|"q_declared": {(année, trimestre): dps},
+    "shares": {année: nombre moyen d'actions}}}. Une requête par étiquette et par période ;
+    les années anciennes restent en cache sans limite de durée."""
+    out = {}
+    periods = []
+    for year in range(DIV_FIRST_YEAR, last_year + 1):
+        age = 7 if year in recent else None
+        for key, tag in DIV_TAGS.items():
+            periods.append((key, tag, "USD-per-shares", f"CY{year}", year, None, age))
+            for q in (1, 2, 3):
+                periods.append(("q_" + key, tag, "USD-per-shares", f"CY{year}Q{q}", year, q, age))
+        periods.append(("shares", "WeightedAverageNumberOfSharesOutstandingBasic", "shares", f"CY{year}", year, None, age))
+    for k, (key, tag, unit, period, year, q, age) in enumerate(periods, 1):
+        frame = get_json(f"https://data.sec.gov/api/xbrl/frames/us-gaap/{tag}/{unit}/{period}.json",
+                         cache_name=f"sec/frames/{tag}_{period}.json.gz", max_age_days=age, min_interval=0.12)
+        if k % 20 == 0 or k == len(periods):
+            log(f"  dividendes par action : {k}/{len(periods)} périodes lues")
+        for row in (frame or {}).get("data", []):
+            series = out.setdefault(row["cik"], {}).setdefault(key, {})
+            series[(year, q) if q else year] = row["val"]
+    return out
 
 
 def main():

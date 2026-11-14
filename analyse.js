@@ -112,7 +112,12 @@ const Analyse = (() => {
         if (liab <= 0) return null;
         return 6.56 * (CA - CL) / A + 3.26 * re / A + 6.72 * ebit / A + 1.05 * eq / liab;
       })(),
-      divYield: null,
+      divYield: null, totalYield: null,
+      // Distribution : dividende par action, taux de distribution, couverture par le flux disponible.
+      dps: g("dps"),
+      payout: ok(g("dividends")) && ok(ni) && ni > 0 ? g("dividends") / ni : null,
+      totalPayout: ok(ni) && ni > 0 && (ok(g("dividends")) || ok(g("buybacks"))) ? ((g("dividends") || 0) + (g("buybacks") || 0)) / ni : null,
+      divCover: ok(g("cfo")) && ok(g("capex")) && ok(g("dividends")) && g("dividends") > 0 ? (g("cfo") - g("capex")) / g("dividends") : null,
       bookYield: ok(g("dividends")) && ok(eqGroup) && eqGroup > 0 ? g("dividends") / eqGroup : null,
       roa: ok(ni) && ok(A) && A > 0 ? ni / A : null,
       ev: null, evEbitda: null, evSales: null, per: null, fcfYield: null,
@@ -139,7 +144,10 @@ const Analyse = (() => {
       f.per = ok(f.ni) && f.ni > 0 ? m / f.ni : null;
       f.fcfYield = ok(f.fcf) ? f.fcf / m : null;
       f.divYield = ok(f.div) ? f.div / m : null;
+      f.totalYield = ok(f.div) || ok(f.buyback) ? ((f.div || 0) + (f.buyback || 0)) / m : null;
     }
+    // Croissance soutenable (autofinancée) : ROE × (1 − taux de distribution).
+    f.sustGrowth = ok(f.roe) && ok(f.payout) ? f.roe * (1 - f.payout) : ok(f.roe) && !ok(f.div) ? f.roe : null;
     return f;
   };
 
@@ -399,7 +407,8 @@ const Analyse = (() => {
   // ---------- Comparaison au secteur ----------
   const sectorCache = {};
   const BENCH = ["per", "evSales", "fcfYield", "growth", "ebitdaMargin", "margin", "netMargin", "bfrDays", "capexRev", "rotation", "ndEbitda",
-    "coverage", "roce", "roe", "evEbitda", "zScore", "divYield", "bookYield", "liqGen", "growth1"];
+    "coverage", "roce", "roe", "evEbitda", "zScore", "divYield", "bookYield", "liqGen", "growth1",
+    "payout", "totalYield", "divCover", "sustGrowth"];
   function sectorStats(sector, i) {
     const key = sector + "|" + i;
     if (sectorCache[key]) return sectorCache[key];
@@ -705,9 +714,122 @@ const Analyse = (() => {
       ${kpi("ROCE − coût du capital", `<span class="${ok(spread) ? (spread >= 0 ? "pos" : "neg") : ""}">${ok(spread) ? (spread >= 0 ? "+" : "") + nf1.format(spread * 100) + " pts" : "—"}</span>`)}
       ${kpi(`Création de valeur ${state.meta.years[i]} (M ${esc(c.cur)})`, `<span class="${ok(eva) ? (eva >= 0 ? "pos" : "neg") : ""}">${M(eva)}</span>`)}
     </div>`;
-    return step(4, "La rentabilité", "rentabilité économique, capitaux propres, effet de levier", kpis + leverage(f) +
+    return step(4, "La rentabilité", "rentabilité économique, capitaux propres, effet de levier, distribution", kpis + leverage(f) +
       `<p class="note">Création de valeur (profit économique) = (ROCE après IS − coût du capital) × actif économique. L'effet de levier augmente la rentabilité des capitaux propres mais aussi leur risque : il ne crée pas de valeur. Seule une rentabilité économique durablement supérieure au coût du capital en crée.</p>` +
-      history(c));
+      history(c) + dividends(c, f, i, st));
+  }
+
+  // ---------- Étape 4 (suite) : la politique de distribution ----------
+  // Série longue du dividende par action (c.dh, préparée par collect/dividends.py) :
+  // y0 = première année, v = montants ajustés des divisions d'actions, h = hausses consécutives,
+  // sb = années sans baisse, cp = série de hausses qui remonte au début de l'historique,
+  // e = années estimées sur neuf mois, sp = années de division d'actions.
+  function dpsSeries(c) {
+    const d = c.dh;
+    if (!d || !d.v) return [];
+    return d.v.map((v, k) => ({ y: d.y0 + k, v, est: (d.e || []).includes(d.y0 + k), split: (d.sp || []).includes(d.y0 + k) }));
+  }
+  function streakLabel(c) {
+    const d = c.dh;
+    if (!d) return null;
+    const rows = dpsSeries(c).filter((r) => ok(r.v));
+    const last = rows.length ? rows[rows.length - 1] : null;
+    const lastYear = state.meta.years[state.meta.years.length - 1];
+    if (!last || last.v <= 0) return { light: "grey", txt: "Pas de dividende au dernier exercice connu.", n: 0 };
+    if (last.y < lastYear - 1) return { light: "grey", txt: `Dernier dividende par action publié en ${last.y} : série interrompue ou non déclarée depuis.`, n: 0 };
+    const n = d.h, first = rows[0].y;
+    const plus = d.cp ? "au moins " : "";
+    let tier = "";
+    if (n >= 25) tier = "<b>aristocrate du dividende</b> (25 ans de hausse ou plus)";
+    else if (n >= 10 && d.cp) tier = `en hausse chaque année depuis le début de l'historique (${first}) : <b>candidat aristocrate</b>, la série réelle est sans doute plus longue (à vérifier dans les rapports annuels antérieurs)`;
+    else if (n >= 10) tier = "dividende <b>régulièrement relevé</b> (10 ans ou plus)";
+    else if (n >= 5) tier = "dividende en progression (5 à 9 ans)";
+    else if (n >= 1) tier = "hausses récentes";
+    else tier = d.sb >= 3 ? `pas de hausse au dernier exercice, mais pas de baisse depuis ${d.sb} ans` : "dividende baissé ou stable au dernier exercice";
+    return {
+      light: n >= 10 ? "green" : n >= 3 || d.sb >= 5 ? "orange" : "red", n,
+      txt: n ? `${plus}${n} hausse${n > 1 ? "s" : ""} consécutive${n > 1 ? "s" : ""} du dividende par action : ${tier}.` : tier.charAt(0).toUpperCase() + tier.slice(1) + ".",
+    };
+  }
+  function dpsChart(c) {
+    const rows = dpsSeries(c);
+    const vals = rows.filter((r) => ok(r.v));
+    if (vals.length < 2) return "";
+    const W = 640, H = 170, padL = 40, padB = 20, top = 10;
+    const hi = Math.max(...vals.map((r) => r.v)) * 1.08 || 1;
+    const bw = (W - padL - 6) / rows.length;
+    const y = (v) => top + (1 - v / hi) * (H - padB - top);
+    let prev = null;
+    const bars = rows.map((r, k) => {
+      const x = padL + k * bw + bw * 0.15, w = bw * 0.7;
+      const lbl = `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle" class="ax">${rows.length > 14 ? String(r.y).slice(2) : r.y}</text>`;
+      if (!ok(r.v)) { prev = null; return lbl; }
+      const down = ok(prev) && r.v < prev * 0.995;
+      const col = down ? "var(--bad)" : "var(--bar1)";
+      prev = r.v;
+      return `<rect x="${x}" y="${y(r.v)}" width="${w}" height="${Math.max(0.5, y(0) - y(r.v))}" fill="${col}" ${r.est ? `fill-opacity=".45" stroke="${col}" stroke-dasharray="3 2"` : ""}><title>${r.y} : ${nf2.format(r.v)}${r.est ? " (estimé sur 9 mois)" : ""}${r.split ? " · division d'actions" : ""}</title></rect>` +
+        (r.split ? `<text x="${x + w / 2}" y="${y(r.v) - 3}" text-anchor="middle" class="ax">÷</text>` : "") + lbl;
+    }).join("");
+    const grid = [0.5, 1].map((t) => `<line x1="${padL}" x2="${W}" y1="${y(hi / 1.08 * t)}" y2="${y(hi / 1.08 * t)}" stroke="var(--line)"/><text x="${padL - 4}" y="${y(hi / 1.08 * t) + 4}" text-anchor="end" class="ax">${(hi / 1.08 * t).toFixed(2).replace(".", ",")}</text>`).join("");
+    return `<svg class="dps-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Dividende par action, ${rows[0].y}–${rows[rows.length - 1].y}">${grid}${bars}</svg>`;
+  }
+  function dpsCagr(c, n) {
+    const rows = dpsSeries(c).filter((r) => ok(r.v) && r.v > 0);
+    if (rows.length < 2) return null;
+    const last = rows[rows.length - 1], first = rows.find((r) => r.y >= last.y - n);
+    return first && last.y > first.y ? Math.pow(last.v / first.v, 1 / (last.y - first.y)) - 1 : null;
+  }
+
+  const nf2 = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const DPS = (v) => (ok(v) ? nf2.format(v) : "—");
+  function dividends(c, f, i, st) {
+    if (!ok(f.div) && !ok(f.buyback) && !c.dh) return card("Politique de distribution", "", `<p class="note">Aucun dividende ni rachat d'actions publié pour cet exercice.</p>`);
+    const sk = streakLabel(c);
+    const g5 = dpsCagr(c, 5), g10 = dpsCagr(c, 10);
+    const payLight = !ok(f.div) || f.div === 0 ? "grey" : !ok(f.payout) ? "red" : f.payout <= 0.6 ? "green" : f.payout <= 0.9 ? "orange" : "red";
+    const covLight = !ok(f.divCover) ? "grey" : f.divCover >= 1.5 ? "green" : f.divCover >= 1 ? "orange" : "red";
+    const growLight = !ok(f.sustGrowth) || !ok(g5) ? "grey" : f.sustGrowth >= g5 ? "green" : f.sustGrowth >= g5 / 2 ? "orange" : "red";
+    const checks = `<div class="checks">
+      <div>${light(payLight)}<b>Taux de distribution : ${ok(f.payout) ? P(f.payout) : ok(f.div) && f.div > 0 ? "bénéfice nul ou négatif" : "—"}</b>
+        <span>Dividendes versés / résultat net part du groupe. Au-delà de 60 à 70 %, peu de marge en cas de recul des bénéfices (sauf foncières, services aux collectivités). ${bench(st, "payout", f.payout, P, false)}</span></div>
+      <div>${light(covLight)}<b>Couverture par le flux disponible : ${X(f.divCover)}</b>
+        <span>Flux disponible (exploitation − investissements) / dividendes. Sous 1×, le dividende est payé par la dette, la trésorerie ou des cessions. ${bench(st, "divCover", f.divCover, X)}</span></div>
+      <div>${light(growLight)}<b>Croissance soutenable : ${P(f.sustGrowth)}</b>
+        <span>ROE ${P(f.roe)} × (1 − ${ok(f.payout) ? P(f.payout) : "0 %"}) : croissance que les bénéfices mis en réserve permettent sans emprunter davantage ni augmenter le capital.
+          ${ok(f.roe) && f.roe > 0.4 ? "ROE très élevé, souvent dû à des capitaux propres réduits par les rachats d'actions : la croissance soutenable est alors surestimée." : ""}
+          ${ok(g5) ? `Le dividende par action a crû de ${P(g5)} par an sur 5 ans${ok(g10) ? ` (${P(g10)} sur 10 ans)` : ""} : ${f.sustGrowth >= g5 ? "rythme tenable" : "rythme supérieur à ce que la rentabilité autofinance, le taux de distribution va monter"}.` : ""}</span></div>
+      ${sk ? `<div>${light(sk.light)}<b>Série des hausses : ${sk.n ? (c.dh.cp ? "≥ " : "") + sk.n + " an" + (sk.n > 1 ? "s" : "") : "—"}</b><span>${sk.txt}</span></div>` : ""}
+    </div>`;
+    const kpis = `<div class="kpis">
+      ${kpi(`Dividende par action (${esc(c.cur)})`, DPS(f.dps), ok(dpsCagr(c, 5)) ? `<small class="bench">${P(dpsCagr(c, 5))} par an sur 5 ans</small>` : "")}
+      ${kpi(`Dividendes versés (M ${esc(c.cur)})`, M(f.div))}
+      ${kpi(`Rachats d'actions (M ${esc(c.cur)})`, M(f.buyback))}
+      ${kpi("Distribution totale / résultat net", P(f.totalPayout), `<small class="bench">dividendes + rachats</small>`)}
+      ${kpi("Rendement du dividende", P(f.divYield), bench(st, "divYield", f.divYield, P))}
+      ${kpi("Rendement total pour l'actionnaire", P(f.totalYield), `<small class="bench">(dividendes + rachats) / capitalisation</small>` + bench(st, "totalYield", f.totalYield, P))}
+    </div>`;
+    const ys = state.meta.years;
+    const fs = ys.map((_, j) => figures(c, j));
+    const idx = ys.map((_, j) => j).filter((j) => ok(fs[j].div) || ok(fs[j].buyback));
+    const table = idx.length > 1 ? `<div class="tablewrap"><table><thead><tr><th class="l"></th>${idx.map((j) => `<th>${ys[j]}</th>`).join("")}</tr></thead><tbody>
+      <tr><td class="l">Résultat net part du groupe</td>${idx.map((j) => `<td>${M(fs[j].ni)}</td>`).join("")}</tr>
+      <tr><td class="l">Dividendes versés</td>${idx.map((j) => `<td>${M(fs[j].div)}</td>`).join("")}</tr>
+      <tr><td class="l">Rachats d'actions</td>${idx.map((j) => `<td>${M(fs[j].buyback)}</td>`).join("")}</tr>
+      <tr><td class="l">Taux de distribution</td>${idx.map((j) => `<td>${P(fs[j].payout)}</td>`).join("")}</tr>
+      <tr><td class="l">Distribution totale / résultat net</td>${idx.map((j) => `<td>${P(fs[j].totalPayout)}</td>`).join("")}</tr>
+      <tr><td class="l">Flux disponible / dividendes</td>${idx.map((j) => `<td>${X(fs[j].divCover)}</td>`).join("")}</tr>
+      <tr><td class="l">Croissance soutenable</td>${idx.map((j) => `<td>${P(fs[j].sustGrowth)}</td>`).join("")}</tr>
+      <tr><td class="l">Dividende par action (${esc(c.cur)})</td>${idx.map((j) => `<td>${DPS(fs[j].dps)}</td>`).join("")}</tr>
+    </tbody></table></div>` : "";
+    const rows = dpsSeries(c).filter((r) => ok(r.v));
+    const chart = dpsChart(c);
+    const src = c.c === "US" ? "déclarations XBRL à la SEC, depuis 2007" : c.id.includes("-SEC") ? "rapports 20-F / 40-F à la SEC" : "rapports ESEF, depuis 2020 environ";
+    const chartCard = chart ? card(`Dividende par action, ${rows[0].y}–${rows[rows.length - 1].y}`, c.cur, chart,
+      `Source : ${src}. Montants ramenés au nombre d'actions actuel (÷ : division d'actions détectée). En rouge : baisse ; en pointillé : année estimée à partir des trois premiers trimestres.
+       Les déclarations XBRL ne remontent pas avant 2007 : une série « ≥ » peut être plus longue en réalité. Les dividendes exceptionnels et les scissions peuvent créer de fausses hausses ou baisses.`) : "";
+    return card("Politique de distribution", "", checks + kpis,
+      "Le dividende rémunère l'actionnaire mais réduit l'autofinancement : un taux de distribution élevé limite la croissance que l'entreprise peut financer seule. Les rachats d'actions sont une autre forme de distribution, plus souple (pas d'engagement de régularité).") +
+      chartCard + (table ? card("Distribution année par année", `M ${c.cur}`, table) : "");
   }
 
   // ---------- Valorisation et reprise ----------
@@ -931,7 +1053,10 @@ const Analyse = (() => {
         En <b>statique</b>, le bilan : <b>dette nette / EBE inférieure à environ 3</b>, <b>résultat d'exploitation / frais financiers
         supérieur à environ 3</b>, et la liquidité (générale, réduite, immédiate : échéances des dettes face à celles des actifs).</li>
       <li><b>La rentabilité</b> : ROCE = marge × rotation, puis l'effet de levier. Le levier ne crée pas de valeur :
-        il augmente le ROE mais aussi le risque. Seule une bonne rentabilité économique dure.</li>
+        il augmente le ROE mais aussi le risque. Seule une bonne rentabilité économique dure.
+        Puis la <b>politique de distribution</b> : taux de distribution (dividendes / résultat net), <b>croissance soutenable
+        = ROE × (1 − taux de distribution)</b>, couverture du dividende par le flux disponible, rendement total
+        (dividendes + rachats d'actions) et régularité du dividende par action (années de hausse consécutives).</li>
     </ol>
     <p><b>Conclusion</b>, rédigée sous les deux angles : « <b>du point de vue des actionnaires</b> » (création de valeur, c'est-à-dire
     ROCE comparé au <b>coût du capital</b>) et « <b>du point de vue des prêteurs</b> » (solvabilité et liquidité).

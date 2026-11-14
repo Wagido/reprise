@@ -13,7 +13,7 @@ import sys
 from urllib.parse import quote
 
 from common import get_json, write_json
-from concepts import IFRS, all_tags, guess_custom, resolve
+from concepts import IFRS, PER_SHARE_TAGS, all_tags, guess_custom, resolve
 
 BASE = "https://filings.xbrl.org"
 LIST = BASE + "/api/filings?filter%5Bcountry%5D={country}&page%5Bsize%5D=200&include=entity&page%5Bnumber%5D={page}"
@@ -88,7 +88,7 @@ def parse_filing(doc):
         if not custom and tag not in TAGS:
             continue
         unit = dims.get("unit", "")
-        per_share = tag == "BasicEarningsLossPerShare" and unit.startswith("iso4217:") and "/" in unit
+        per_share = tag in PER_SHARE_TAGS and unit.startswith("iso4217:") and "/" in unit
         if not unit.startswith("iso4217:") or ("/" in unit and not per_share):
             continue
         try:

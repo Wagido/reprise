@@ -11,6 +11,7 @@ import sys
 
 from common import get_json, read_json, write_json
 from concepts import IFRS, US_GAAP, all_tags, resolve
+from dividends import history as dividend_history
 
 TICKERS = "https://www.sec.gov/files/company_tickers_exchange.json"
 FACTS = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
@@ -106,11 +107,26 @@ def main():
         years = {str(y): r for y, r in ((y, resolve(mapping, v)) for y, v in sorted(by_year.items())) if r}
         if not any("revenue" in r for r in years.values()):
             continue
+        # Historique long du dividende par action : toutes les années de la fiche.
+        div_tags = [t for alt in mapping["dps"] for t in alt]
+        sh_tag = "WeightedAverageShares" if taxonomy == "ifrs-full" else "WeightedAverageNumberOfSharesOutstandingBasic"
+        dv = annual_values(facts, taxonomy, div_tags + [sh_tag])
+        per_tag = {}
+        shares = {}
+        for (y, tag), (v, unit, _) in dv.items():
+            if tag == sh_tag:
+                if unit == "shares":
+                    shares[y] = v
+            elif unit == cur + "/shares" or (unit.startswith(cur + "/") and unit.endswith("shares")):
+                per_tag.setdefault(tag, {})[y] = v
+        series = [per_tag.get(t, {}) for t in div_tags] + [{}, {}]
+        dh = dividend_history(series[0], series[1], shares) if any(series) else None
+
         sub = get_json(SUBMISSIONS.format(cik=cik), cache_name=f"sec/sub_intl/{cik}.json.gz", max_age_days=180, min_interval=0.12) or {}
         companies.append({
             "id": f"{cc}-SEC{cik}", "name": d.get("entityName") or name, "country": cc, "ticker": t, "exchange": ex,
             "sic": sub.get("sic") or None, "sector_desc": sub.get("sicDescription") or None,
-            "currency": cur.split("/")[0], "fy_end": {}, "years": years,
+            "currency": cur.split("/")[0], "fy_end": {}, "years": years, "div_hist": dh,
             "source": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=20-F",
         })
         if k % 20 == 0:

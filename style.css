@@ -429,3 +429,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
 /* Bouton clair / sombre */
 .theme-btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; line-height: 1; }
 .brand { flex: 1 1 auto; }
+
+/* Dividende par action sur longue période (étape 4) */
+.dps-chart { width: 100%; height: auto; display: block; }
+.dps-chart .ax { fill: var(--muted); font-size: 11px; }
+.checks + .kpis { margin-top: 14px; }

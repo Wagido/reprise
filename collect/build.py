@@ -10,7 +10,8 @@ import re
 import unicodedata
 
 from common import read_json, write_json
-from concepts import FIELDS
+from concepts import FIELDS, PER_SHARE
+from dividends import history as dividend_history
 from sectors_fr import SECTORS_FR
 
 SECTORS = {
@@ -219,11 +220,23 @@ def main():
             row = []
             for y in years:
                 v = c["years"].get(str(y), {}).get(f)
-                row.append(None if v is None else (round(v, 4) if f == "eps" else round(v / 1e6, 3)))
+                row.append(None if v is None else (round(v, 4) if f in PER_SHARE else round(v / 1e6, 3)))
             if any(v is not None for v in row):
                 values[f] = row
         if "revenue" not in values:
             continue
+        # Dividende par action sur longue période (SEC) ; sinon, années collectées (ESEF), avec un
+        # nombre d'actions approché par résultat net / bénéfice par action pour repérer les divisions.
+        dh = c.get("div_hist")
+        if not dh:
+            dps = {int(y): r["dps"] for y, r in c["years"].items() if r.get("dps") is not None}
+            shares = {int(y): r["net_income"] / r["eps"] for y, r in c["years"].items()
+                      if r.get("net_income") and r.get("eps") and r["net_income"] / r["eps"] > 0}
+            dh = dividend_history(dps, {}, shares) if dps else None
+        if dh and not any(v for v in dh["v"] if v):
+            dh = None
+        div_hist = {"y0": dh["y0"], "v": dh["v"], "h": dh["hausses"], "sb": dh["sans_baisse"], "cp": dh["complet"],
+                    "e": dh.get("est", []), "sp": dh["splits"]} if dh else None
         out.append({
             "id": c["id"], "n": c["name"], "c": c["country"], "z": ZONES.get(c["country"], "EU"), "t": c.get("ticker"), "x": c.get("exchange"),
             "s": sector, "sf": sector_from, "sd": c.get("sector_desc"), "sic": c.get("sic"),
@@ -233,6 +246,7 @@ def main():
             "px": (prices.get("us", {}) if c["country"] == "US" else prices.get("fr", {})).get(c["id"]),
             "ff": prices.get("us_float", {}).get(c["id"]),   # part du flottant (USA)
             "v": values,
+            "dh": div_hist,
         })
 
     meta = {

@@ -54,6 +54,7 @@ FIELDS = [
     ("inventory", "I", "Stocks"),
     ("payables", "I", "Dettes fournisseurs"),
     ("eps", "D", "Bénéfice net par action (de base)"),
+    ("dps", "D", "Dividende par action"),
     # Hors table de correspondance : collecté à part (USA seulement).
     ("market_cap", "I", "Capitalisation flottante (déclarée à la SEC)"),
 ]
@@ -91,6 +92,7 @@ US_GAAP = {
     "equity_total": [["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"], ["StockholdersEquity"]],
     "retained_earnings": [["RetainedEarningsAccumulatedDeficit"]],
     "eps": [["EarningsPerShareBasic"], ["EarningsPerShareBasicAndDiluted"]],
+    "dps": [["CommonStockDividendsPerShareCashPaid"], ["CommonStockDividendsPerShareDeclared"]],
     "noncurrent_liabilities": [["LiabilitiesNoncurrent"]],
     "operating_income": [["OperatingIncomeLoss"]],
     "da": [
@@ -172,6 +174,7 @@ IFRS = {
     "equity_total": [["Equity"]],
     "retained_earnings": [["RetainedEarnings"]],
     "eps": [["BasicEarningsLossPerShare"]],
+    "dps": [["DividendsRecognisedAsDistributionsToOwnersPerShare"]],
     "noncurrent_liabilities": [["NoncurrentLiabilities"]],
     "operating_income": [["ProfitLossFromOperatingActivities"]],
     "da": [
@@ -214,9 +217,13 @@ IFRS = {
     "payables": [["TradeAndOtherCurrentPayables"], ["TradeAndOtherCurrentPayablesToTradeSuppliers"]],
 }
 
+# Champs exprimés par action (devise par action, pas en millions).
+PER_SHARE = {"eps", "dps"}
+PER_SHARE_TAGS = {t for m in (US_GAAP, IFRS) for f in PER_SHARE for alt in m[f] for t in alt}
+
 # Valeurs toujours prises en positif (sorties de trésorerie ou charges
 # parfois publiées avec un signe négatif).
-ABSOLUTE = {"da", "capex", "dividends", "interest", "cost_of_revenue", "sga", "rnd", "staff",
+ABSOLUTE = {"da", "capex", "dividends", "dps", "interest", "cost_of_revenue", "sga", "rnd", "staff",
             "acquisitions", "buybacks", "share_issue", "debt_issued", "debt_repaid"}
 
 
