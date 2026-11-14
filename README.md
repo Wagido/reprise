@@ -13,7 +13,7 @@ GitHub Actions produit un fichier JSON publié sur GitHub Pages avec l'interface
 | Pays | Source | Normes | Historique | Secteur |
 |---|---|---|---|---|
 | USA | SEC EDGAR, API XBRL « frames » (`data.sec.gov`) | US GAAP (10-K) | 6 exercices | code SIC déclaré à la SEC |
-| France | Rapports ESEF déposés à l'AMF, via `filings.xbrl.org` | IFRS | depuis 2020 | estimé (nom + description de l'activité) |
+| France | Rapports ESEF déposés à l'AMF, via `filings.xbrl.org` | IFRS | depuis 2020 | classé à la main (`collect/sectors_fr.py`), sinon estimé |
 
 Les montants sont convertis en millions d'euros au taux moyen annuel (approximatif).
 
@@ -47,15 +47,21 @@ Les téléchargements sont gardés dans `cache/` : les relances suivantes sont r
 ## Publication
 
 1. Dans **Settings > Pages**, choisir *Source : GitHub Actions*.
-2. Dans **Settings > Secrets and variables > Actions > Variables**, créer `SEC_USER_AGENT`
-   avec un nom d'outil et un e-mail de contact (la SEC le demande), par exemple
-   `reprise-screener vous@exemple.fr`.
+2. Facultatif : dans **Settings > Secrets and variables > Actions > Secrets**, créer le secret
+   `SEC_USER_AGENT` avec un nom d'outil et une adresse de contact, par exemple
+   `reprise-screener une-adresse@exemple.fr`. La SEC demande aux programmes de s'identifier
+   ainsi pour pouvoir prévenir leur auteur en cas de trop nombreuses requêtes. L'adresse
+   n'est envoyée qu'à la SEC, dans l'en-tête des requêtes, et un secret n'apparaît ni dans le
+   code ni dans les journaux. Sans ce secret, une identification générique est utilisée.
 3. Lancer le workflow **Collecte et publication** (onglet Actions). Il tourne ensuite chaque lundi.
 
 ## Limites connues
 
+- Couverture française : environ 230 sociétés par an, celles que filings.xbrl.org a collectées.
+  La base de l'AMF (info-financiere.gouv.fr) ne diffuse que les PDF, pas les données ESEF.
 - Certaines sociétés publient des lignes sous leurs propres étiquettes (fréquent pour la dette
-  et le capex en France) : la case reste vide. Ce n'est pas un zéro.
+  et le capex en France). L'outil les reconnaît par leur nom quand c'est possible et les marque
+  « estimé » dans la fiche ; sinon la case reste vide (ce n'est pas un zéro).
 - EBITDA recalculé (résultat opérationnel + amortissements), donc différent de l'EBITDA
   « ajusté » communiqué par les sociétés.
 - Dette nette hors dettes de location (IFRS 16 / ASC 842), affichées à part.

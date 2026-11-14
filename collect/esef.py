@@ -13,7 +13,7 @@ import sys
 from urllib.parse import quote
 
 from common import get_json, write_json
-from concepts import IFRS, all_tags, resolve
+from concepts import IFRS, all_tags, guess_custom, resolve
 
 BASE = "https://filings.xbrl.org"
 LIST = BASE + "/api/filings?filter%5Bcountry%5D={country}&page%5Bsize%5D=200&include=entity&page%5Bnumber%5D={page}"
@@ -78,10 +78,11 @@ def parse_filing(doc):
         if concept == DESC and not desc and fact.get("value"):
             desc = " ".join(str(fact["value"]).split())[:400]
             continue
-        if not concept.startswith("ifrs-full:") or set(dims) - BASE_DIMS:
+        if set(dims) - BASE_DIMS or ":" not in concept:
             continue
-        tag = concept[10:]
-        if tag not in TAGS:
+        prefix, tag = concept.split(":", 1)
+        custom = prefix != "ifrs-full"
+        if not custom and tag not in TAGS:
             continue
         unit = dims.get("unit", "")
         if not unit.startswith("iso4217:") or "/" in unit:
@@ -93,13 +94,18 @@ def parse_filing(doc):
         year, end = period_year(dims.get("period", ""))
         if year is None:
             continue
-        if (TAGS[tag] == "D") != ("/" in dims["period"]):
+        duration = "/" in dims["period"]
+        if custom:
+            # Étiquette propre à la société, gardée à part pour les lignes manquantes.
+            by_year[year][("~D:" if duration else "~I:") + tag] = val
+            continue
+        if (TAGS[tag] == "D") != duration:
             continue
         by_year[year][tag] = val
         units[unit[8:]] += 1
         if end:
             ends[year] = end
-    if not by_year:
+    if not units:
         return {}, None, desc, None, {}
     # L'année du rapport : la plus récente qui a un flux sur douze mois.
     own = max(ends) if ends else max(by_year)
@@ -150,9 +156,31 @@ def collect(country="FR", limit=None, log=print):
     companies = []
     for lei, c in per_lei.items():
         years = {}
+        estimated = set()
         for y in sorted(set(c["own"]) | set(c["comp"])):
             vals = c["own"].get(y) or c["comp"].get(y)
             r = resolve(IFRS, vals)
+            for kind in ("D", "I"):
+                custom = {k[3:]: v for k, v in vals.items() if k.startswith(f"~{kind}:")}
+                if not custom:
+                    continue
+                g = guess_custom(custom, kind)
+                net_debt = g.pop("net_debt", None)
+                has_debt = any(k in r for k in ("debt_lt", "debt_st", "debt_total"))
+                for field, v in g.items():
+                    if field == "debt_total":
+                        if has_debt:
+                            continue
+                    elif field.startswith("debt"):
+                        if field in r or "debt_total" in r:
+                            continue
+                    elif field in r:
+                        continue
+                    r[field] = v
+                    estimated.add(field)
+                if net_debt is not None and "cash" in r and not any(k in r for k in ("debt_lt", "debt_st", "debt_total")):
+                    r["debt_total"] = net_debt + r["cash"]
+                    estimated.add("debt_total")
             if r:
                 years[str(y)] = r
         if not any("revenue" in r for r in years.values()):
@@ -167,6 +195,7 @@ def collect(country="FR", limit=None, log=print):
             "fy_end": {str(k): v for k, v in c["ends"].items()},
             "source": c["viewer"],
             "years": years,
+            "estimated": sorted(estimated),
         })
     log(f"ESEF {country} : {len(companies)} sociétés avec des comptes")
     return companies

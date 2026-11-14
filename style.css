@@ -200,3 +200,4 @@ svg text { fill: var(--muted); font-size: 11px; }
   .blk { font-size: 10.5px; }
   .lv-op { flex-basis: 100%; text-align: center; line-height: 1; }
 }
+.desc.est { border-left: 3px solid var(--c-bfr); padding-left: 8px; }

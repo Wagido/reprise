@@ -34,8 +34,9 @@ jobs:
           restore-keys: data-cache-
       - name: USA (SEC EDGAR)
         env:
-          # À remplacer par votre contact dans Settings > Secrets and variables > Actions > Variables.
-          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT || 'reprise-screener contact@example.com' }}
+          # Facultatif : secret SEC_USER_AGENT (Settings > Secrets and variables > Actions),
+          # par exemple « reprise-screener une-adresse@exemple.fr ». Sinon, valeur générique.
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || 'reprise-screener contact@example.com' }}
         run: python collect/sec.py
       - name: France (ESEF)
         run: python collect/esef.py

@@ -21,6 +21,12 @@ SUBMISSIONS = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 
 LISTED = {"NYSE", "Nasdaq", "CBOE"}
 
+# Nouvel identifiant (CIK) -> ancien, quand une société cotée a été reprise par
+# une nouvelle holding qui garde le même ticker.
+SUCCESSORS = {
+    2115436: 34088,  # ExxonMobil Holdings Corp <- Exxon Mobil Corp (2026)
+}
+
 
 SIC_PATH = os.path.join(CACHE, "sec", "sic.json")
 
@@ -71,6 +77,18 @@ def collect(years, max_sic=None, log=print):
                 per_cik.setdefault(cik, {}).setdefault(year, {})[tag] = row["val"]
                 if kind == "D":
                     ends.setdefault(cik, {}).setdefault(year, row["end"])
+
+    # Sociétés qui ont changé d'identifiant SEC (nouvelle holding) : on recolle
+    # l'historique de l'ancienne entité sous la nouvelle, années manquantes seulement.
+    for new_cik, old_cik in SUCCESSORS.items():
+        if old_cik in per_cik:
+            dst = per_cik.setdefault(new_cik, {})
+            for y, vals in per_cik[old_cik].items():
+                merged = dict(vals)
+                merged.update(dst.get(y, {}))
+                dst[y] = merged
+            for y, e in ends.get(old_cik, {}).items():
+                ends.setdefault(new_cik, {}).setdefault(y, e)
 
     tickers = get_json(TICKERS, cache_name="sec/company_tickers_exchange.json.gz", max_age_days=7)
     listing = {}

@@ -320,7 +320,7 @@ function openDetail(c, yearIdx, tab) {
   const m = metrics(c, i);
   const raw = (field) => (_, j) => val(c, field, j, true);
   const where = [c.c === "US" ? "USA" : "France", c.x, c.t].filter(Boolean).join(" · ");
-  const sector = `${state.meta.sectors[c.s]}${c.sf === "estimé" ? " (estimé)" : c.sd ? " — " + c.sd : ""}`;
+  const sector = `${state.meta.sectors[c.s]}${c.sf === "estimé" ? " (estimé)" : c.c === "US" && c.sd ? " — " + c.sd : ""}`;
   const row = state.rows.find((r) => r.c === c);
   const avail = ys.map((y, j) => [y, j]).filter(([, j]) => ok(val(c, "revenue", j, true)));
   const chips = avail.map(([y, j]) => `<button class="chip" data-y="${j}" aria-pressed="${j === i}">${y}</button>`).join("");
@@ -361,6 +361,8 @@ function openDetail(c, yearIdx, tab) {
     <p class="meta">${esc(where)} · ${esc(sector)} · comptes en ${esc(c.cur)}
       ${c.src ? ` · <a href="${esc(c.src)}" target="_blank" rel="noopener">source officielle</a>` : ""}</p>
     ${c.c === "FR" && c.sd ? `<p class="desc">${esc(c.sd)}</p>` : ""}
+    ${c.est && c.est.length ? `<p class="desc est">≈ Estimé à partir d'étiquettes propres à la société (à vérifier dans la source) :
+      ${c.est.map((f) => esc((state.meta.fields[f] || {}).label || f).toLowerCase()).join(", ")}.</p>` : ""}
     <div class="kpis">
       ${[["Score reprise", row && ok(row.score) ? row.score + " / 100" : "—"],
          ["CA " + ys[i], money(m.rev) + " M€"], ["Marge EBITDA", pct(m.ebitdaMargin, true)],

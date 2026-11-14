@@ -11,6 +11,7 @@ import unicodedata
 
 from common import read_json, write_json
 from concepts import FIELDS
+from sectors_fr import SECTORS_FR
 
 SECTORS = {
     "energie": "Pétrole, gaz & parapétrolier",
@@ -152,8 +153,20 @@ def main():
             sector = sic_sector(c.get("sic"))
             sector_from = "SIC"
         else:
-            sector = keyword_sector(c["name"], c.get("sector_desc"))
-            sector_from = "estimé"
+            if c.get("lei") in SECTORS_FR:
+                sector, sector_from = SECTORS_FR[c["lei"]], "classé"
+            else:
+                sector, sector_from = keyword_sector(c["name"], c.get("sector_desc")), "estimé"
+        # Totaux absents, reconstitués : résultat avant impôt = résultat net + impôt ;
+        # résultat opérationnel = résultat avant impôt + charges financières.
+        est = set(c.get("estimated") or [])
+        for y, r in c["years"].items():
+            if "pretax" not in r and "net_income_total" in r and "tax" in r:
+                r["pretax"] = r["net_income_total"] + r["tax"]
+                est.add("pretax")
+            if "operating_income" not in r and "pretax" in r and "interest" in r:
+                r["operating_income"] = r["pretax"] + r["interest"]
+                est.add("operating_income")
         values = {}
         for f in fields:
             row = []
@@ -167,7 +180,7 @@ def main():
         out.append({
             "id": c["id"], "n": c["name"], "c": c["country"], "t": c.get("ticker"), "x": c.get("exchange"),
             "s": sector, "sf": sector_from, "sd": c.get("sector_desc"), "sic": c.get("sic"),
-            "cur": c["currency"], "src": c.get("source"),
+            "cur": c["currency"], "src": c.get("source"), "est": sorted(est),
             "fy": {y: c.get("fy_end", {}).get(str(y)) for y in years[-1:]},
             "v": values,
         })
