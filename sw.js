@@ -1,23 +1,10 @@
-// Hors ligne : l'interface est servie depuis le cache, les données sont
-// rechargées depuis le réseau quand il est là (sinon, dernière copie).
-const CACHE = "reprise-v22";
-const SHELL = ["./", "index.html", "style.css", "app.js", "analyse.js", "pme.js", "lbo.js", "picking.js", "nuages.js", "tdb.js", "banc.js", "lib/leaflet.js", "lib/leaflet.css", "icon.svg", "manifest.webmanifest"];
-
-self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
+// Ancien module hors connexion : il servait parfois une copie périmée du site.
+// Cette version efface ses copies et se désinstalle ; le site se charge toujours depuis le réseau.
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-    .then(() => self.clients.claim()));
-});
-self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== location.origin) return;
-  e.respondWith(
-    fetch(e.request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(e.request, copy));
-      return res;
-    }).catch(() => caches.match(e.request))
-  );
+  e.waitUntil((async () => {
+    for (const k of await caches.keys()) await caches.delete(k);
+    await self.registration.unregister();
+    for (const c of await self.clients.matchAll({ type: "window" })) c.navigate(c.url);
+  })());
 });

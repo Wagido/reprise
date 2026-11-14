@@ -867,7 +867,11 @@ async function init() {
   let start = "tdb";
   try { start = localStorage.getItem("reprise.view") || "tdb"; } catch (e) { /* ignoré */ }
   setView(SPACE_OF[start] && start !== "compare" ? start : "tdb");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  // Plus de module hors connexion : on désinstalle celui des anciennes versions et on vide ses copies.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+    if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
+  }
 }
 
 init();
