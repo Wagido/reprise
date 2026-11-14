@@ -201,7 +201,12 @@ def fr_prices(companies):
     key = os.environ.get("ALPHAVANTAGE_API_KEY")
     tickers = fr_tickers([c["lei"] for c in companies if c.get("lei")])
     todo = [c for c in companies if c.get("lei") in tickers]
-    todo.sort(key=lambda c: (state.get(c["id"]) or [None, ""])[1])   # jamais mis à jour d'abord, puis les plus anciens
+    # Jamais mis à jour d'abord, puis les plus anciens ; à égalité, les plus grandes sociétés (CA) en premier,
+    # pour que les grandes capitalisations aient un cours dès les premiers passages.
+    def size(c):
+        ys = sorted(c.get("years", {}), reverse=True)
+        return -((c["years"][ys[0]].get("revenue") or 0) if ys else 0)
+    todo.sort(key=lambda c: ((state.get(c["id"]) or [None, ""])[1], size(c)))
     if key:
         done = 0
         for c in todo[:FR_PER_RUN]:

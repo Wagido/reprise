@@ -586,3 +586,4 @@ details.step .open-hint { font-size: 11.5px; }
 .answers .synth-row span { font-size: 11.5px; }
 h3.part { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 16px 0 4px; }
 h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.note.warn { color: var(--bad); }

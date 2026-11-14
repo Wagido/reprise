@@ -30,9 +30,10 @@ const Analyse = (() => {
     // Dette long terme : publiée, ou à défaut le total publié moins la part courte.
     const debtLT = ok(dlt) ? dlt : ok(dtot) ? Math.max(0, dtot - (dst || 0)) : 0;
     const debtST = ok(dst) ? dst : 0;
-    // Dette nette (Vernimmen) : dettes financières (location comprise quand la société l'inclut dans ses emprunts)
-    // − trésorerie − placements financiers à court terme.
-    const netDebt = ok(cash) ? debtLT + debtST - cash - (g("st_invest") || 0) : null;
+    // Dette nette (Vernimmen, IFRS 16) : dettes financières + dettes de location − trésorerie − placements à court terme.
+    // Sans dette financière publiée, la dette nette reste inconnue (et non égale à − trésorerie).
+    const leases = g("leases") || 0;
+    const netDebt = ok(cash) && debtKnown ? debtLT + debtST + leases - cash - (g("st_invest") || 0) : null;
 
     // Bilan économique.
     const bfr = ok(CA) && ok(cash) && ok(CL) ? (CA - cash) - (CL - debtST) : null;
@@ -61,7 +62,8 @@ const Analyse = (() => {
       const e = ok(g("equity_total", j)) ? g("equity_total", j) : g("equity", j), ch = g("cash", j);
       if (!ok(e) || !ok(ch)) return null;
       const lt = ok(g("debt_lt", j)) ? g("debt_lt", j) : ok(g("debt_total", j)) ? Math.max(0, g("debt_total", j) - (g("debt_st", j) || 0)) : 0;
-      const v = e + lt + (g("debt_st", j) || 0) - ch - (g("st_invest", j) || 0);
+      if (!ok(g("debt_lt", j)) && !ok(g("debt_st", j)) && !ok(g("debt_total", j))) return null;
+      const v = e + lt + (g("debt_st", j) || 0) + (g("leases", j) || 0) - ch - (g("st_invest", j) || 0);
       return v > 0 ? v : null;
     };
     const ce1 = ceAt(i), ce0 = ceAt(i - 1);
@@ -1171,6 +1173,7 @@ const Analyse = (() => {
       <div class="synth-grid">${V.rows.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
       <h3><span class="part-n">2</span> Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></h3>
       ${q(mv[0], "", "", mv[1])}
+      ${ok(f.mcap) && new Date().getFullYear() - state.meta.years[i] >= 2 ? `<p class="note warn">⚠ Comptes ${state.meta.years[i]} : le cours actuel est comparé à des comptes de plus d'un an (le rapport annuel plus récent n'est pas encore dans la base ESEF). Les multiples de marché sont à prendre avec prudence.</p>` : ""}
       <p class="note">Comparaison avec ${st.n} sociétés cotées du secteur « ${esc(state.meta.sectors[c.s])} », toutes zones. Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
       <details class="method"><summary>Le plan d'analyse</summary>${METHOD_HTML}</details></div>`;
   }
@@ -1217,7 +1220,7 @@ const Analyse = (() => {
     le prix de marché à cette référence, aux multiples du secteur et à la valeur par actualisation des flux de trésorerie disponibles.</p>
     <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
     = résultat d'exploitation × (1 − IS) / capitaux employés moyens (capitaux propres + dette nette, moyenne ouverture–clôture) ;
-    dette nette = dettes financières − trésorerie − placements à court terme ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
+    dette nette = dettes financières + dettes de location (IFRS 16) − trésorerie − placements à court terme ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
     <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents
     du secteur) et <b>par rapport à des normes</b> (les repères ci-dessus).</p>`;
 

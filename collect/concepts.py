@@ -206,10 +206,14 @@ IFRS = {
     "equity": [["EquityAttributableToOwnersOfParent"], ["Equity"]],
     "cash": [["CashAndCashEquivalents"]],
     "st_invest": [["CurrentInvestments"], ["OtherCurrentFinancialAssets"]],
-    "debt_lt": [["NoncurrentPortionOfNoncurrentBorrowings"], ["LongtermBorrowings"]],
+    "debt_lt": [["NoncurrentPortionOfNoncurrentBorrowings"], ["LongtermBorrowings"],
+                ["NoncurrentPortionOfNoncurrentBondsIssued", "NoncurrentPortionOfOtherNoncurrentBorrowings", "NoncurrentPortionOfNoncurrentLoansReceived"],
+                ["NoncurrentFinancialLiabilities"]],
     "debt_st": [
         ["CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings"],
         ["ShorttermBorrowings", "CurrentPortionOfLongtermBorrowings"],
+        ["CurrentBondsIssuedAndCurrentPortionOfNoncurrentBondsIssued", "OtherCurrentBorrowingsAndCurrentPortionOfOtherNoncurrentBorrowings",
+         "CurrentPortionOfNoncurrentLoansReceived", "CommercialPapersIssued"],
     ],
     "debt_total": [["Borrowings"]],
     "leases": [["LeaseLiabilities"], ["NoncurrentLeaseLiabilities", "CurrentLeaseLiabilities"]],
@@ -308,8 +312,14 @@ def guess_custom(custom, kind_of_period):
     """custom : {nom local: valeur} pour une année et une nature (D ou I).
     Renvoie {champ: valeur} pour les champs devinés."""
     out = {}
-    for field, (kind, required, excluded) in CUSTOM_RULES.items():
-        if kind != kind_of_period:
+    rules = dict(CUSTOM_RULES)
+    if kind_of_period == "D":
+        # Dernier recours pour les amortissements : lignes qui y ajoutent dépréciations ou provisions
+        # (« amortissements, dépréciations et provisions »), plutôt qu'un EBE inconnu.
+        rules["da_loose"] = ("D", [r"depreciation|amortisation|amortization|amortissement|dotation"],
+                             r"accumulat|cumul|reprise|reversal|before|avant|receivable|creance|stock|inventor|horsamort")
+    for field, (kind, required, excluded) in rules.items():
+        if kind != kind_of_period or (field == "da_loose" and "da" in out):
             continue
         hits = {}
         for name, v in custom.items():
@@ -328,6 +338,8 @@ def guess_custom(custom, kind_of_period):
                 out["debt_st"] = _combine(st)
             if other and not lt and not st:
                 out["debt_total"] = _combine(other)
+        elif field == "da_loose":
+            out["da"] = _combine(list(hits.values()))
         elif field == "net_debt":
             out["net_debt"] = list(hits.values())[0]
         else:
