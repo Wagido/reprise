@@ -281,7 +281,7 @@ const PME = (() => {
         ${kpi("Marge nette", P1(o.nm), bench(ss, "nm", o.nm, P1))}
         ${kpi("Résultat courant avant impôt / CA", P1(o.rcai))}</div>
         <p class="note">Les capitaux propres et l'actif économique ne sont pas publiés en montant dans cette base : ROCE et rentabilité des capitaux propres se calculent à partir des comptes complets (fiche officielle).</p>`)}
-      ${step("€", "Valorisation et reprise", "multiple d'EBE et montage LBO", `<div class="kpis">
+      ${step("€", "Valorisation et reprise", "multiple d'EBE et montage LBO", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p><div class="kpis">
         ${kpi("Multiple VE / EBE", `<input class="param" type="number" step="0.5" min="0" max="20" data-pparam="mult" value="${params.mult}">×`, `<small class="bench">PME françaises : souvent 4 à 7×</small>`)}
         ${kpi("Valeur d'entreprise", K(ev))}
         ${kpi("− dettes financières estimées", K(debt), `<small class="bench">capacité de remboursement × CAF</small>`)}
@@ -291,7 +291,12 @@ const PME = (() => {
         ${kpi("Apport en fonds propres", ok(ev) && ok(acq) ? K(ev - acq) : "—")}
         ${kpi("Années pour rembourser", `${light(!ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red")} ${ok(years) ? nf1.format(years) + " ans" : "impossible"}`, `<small class="bench">avec 70 % de la CAF actuelle</small>`)}</div>
         <p class="note">Ordre de grandeur : la trésorerie, les investissements à venir et la fiscalité de la holding de reprise ne sont pas pris en compte.</p>`)}`;
-    $("detailBody").onclick = null;
+    $("detailBody").onclick = (e) => {
+      if (e.target.id !== "toLbo") return;
+      LBO.fromPme(o);
+      $("detail").hidden = true;
+      setView("lbo");
+    };
     $("detailBody").onchange = (e) => {
       const k = e.target.dataset && e.target.dataset.pparam;
       if (!k) return;

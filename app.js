@@ -584,9 +584,10 @@ function onFilter() {
 function setView(v) {
   state.view = v;
   document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const s of ["list", "sectors", "compare", "pme", "help"]) $("view-" + s).hidden = s !== v;
-  $("filters").hidden = v === "help" || v === "pme";
+  for (const s of ["list", "sectors", "compare", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
+  $("filters").hidden = v === "help" || v === "pme" || v === "lbo";
   if (v === "pme") PME.show();
+  if (v === "lbo") LBO.mount();
   render();
 }
 
