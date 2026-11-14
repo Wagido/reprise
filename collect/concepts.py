@@ -17,6 +17,10 @@ FIELDS = [
     ("rnd", "D", "Recherche et développement"),
     ("staff", "D", "Charges de personnel"),
     ("operating_income", "D", "Résultat opérationnel (EBIT)"),
+    ("roc", "D", "Résultat opérationnel courant (hors éléments non récurrents)"),
+    ("impair", "D", "Dépréciations d'actifs passées en résultat"),
+    ("disposal_gain", "D", "Plus-values de cession d'actifs (résultat)"),
+    ("disposal_adj", "D", "Moins-values de cession (retraitement du tableau de flux)"),
     ("da", "D", "Dotations aux amortissements"),
     ("interest", "D", "Charges financières"),
     ("pretax", "D", "Résultat avant impôt"),
@@ -96,6 +100,9 @@ US_GAAP = {
     "dps": [["CommonStockDividendsPerShareCashPaid"], ["CommonStockDividendsPerShareDeclared"]],
     "noncurrent_liabilities": [["LiabilitiesNoncurrent"]],
     "operating_income": [["OperatingIncomeLoss"]],
+    "impair": [["AssetImpairmentCharges"],
+               ["GoodwillImpairmentLoss", "ImpairmentOfLongLivedAssetsHeldForUse", "ImpairmentOfIntangibleAssetsExcludingGoodwill"]],
+    "disposal_gain": [["GainLossOnDispositionOfAssets1"], ["GainLossOnSaleOfPropertyPlantEquipment"], ["GainLossOnDispositionOfAssets"]],
     "da": [
         ["DepreciationDepletionAndAmortization"],
         ["DepreciationAmortizationAndAccretionNet"],
@@ -179,6 +186,11 @@ IFRS = {
     "dps": [["DividendsRecognisedAsDistributionsToOwnersPerShare"]],
     "noncurrent_liabilities": [["NoncurrentLiabilities"]],
     "operating_income": [["ProfitLossFromOperatingActivities"]],
+    "impair": [["ImpairmentLossRecognisedInProfitOrLossGoodwill", "ImpairmentLossRecognisedInProfitOrLossPropertyPlantAndEquipment",
+                "ImpairmentLossRecognisedInProfitOrLossIntangibleAssetsOtherThanGoodwill"],
+               ["AdjustmentsForImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLoss"]],
+    "disposal_gain": [["GainsLossesOnDisposalsOfNoncurrentAssets"], ["GainsLossesOnDisposalsOfPropertyPlantAndEquipment"]],
+    "disposal_adj": [["AdjustmentsForLossesGainsOnDisposalOfNoncurrentAssets"]],
     "da": [
         ["DepreciationAndAmortisationExpense"],
         ["DepreciationAmortisationAndImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLoss"],
@@ -280,6 +292,11 @@ CUSTOM_RULES = {
              r"net|proceed|repay|rembours|nouveau|increase|decrease|variation|change|lease|locati|interest|interet|cost|cout|emission|issu|fairvalue|justevaleur|derivat|cash|tresorerie"),
     "retained_earnings": ("I", [r"reserve|retainedearning|resultatsaccumul|resultatsnondistribu|reportanouveau"],
                           r"translation|conversion|hedg|couverture|legal|revaluation|reevaluation|actuari|minorit|noncontrolling|interetsminoritaires|treasury|autocontrole|optionsurtitres|sharebased|paiementenactions|fairvalue|justevaleur|premium|prime"),
+    # Résultat opérationnel courant : ligne fréquente dans les comptes français (recommandation ANC).
+    "roc": ("D", [r"resultatoperationnelcourant|currentoperatingincome|currentoperatingprofit|recurringoperatingprofit|recurringoperatingincome|"
+                  r"operatingactivitiesrecurring|profitfromrecurringoperations|operatingincomebeforenonrecurring|"
+                  r"operatingactivitiesbeforeotherincomeandexpense|operatingprofitbeforeother|resultatoperationnelavantautres"],
+            r"^(other|autre)|margin|marge|ratio|asset|liabilit|ebitda|adjust|total|pershare|paraction"),
     "net_debt": ("I", [r"netdebt|endettementnet|dettenette|netfinancialdebt|netindebtedness|endettementfinanciernet|dettefinancierenette"],
                  r"change|variation|ratio|ebitda|increase|decrease|before|hors|excluding|avant"),
 }
@@ -342,6 +359,8 @@ def guess_custom(custom, kind_of_period):
             out["da"] = _combine(list(hits.values()))
         elif field == "net_debt":
             out["net_debt"] = list(hits.values())[0]
+        elif field == "roc":
+            out["roc"] = max(hits.values(), key=abs)   # signé : un résultat courant peut être négatif
         else:
             out[field] = _combine(list(hits.values()))
     return out

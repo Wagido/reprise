@@ -51,10 +51,38 @@ const Analyse = (() => {
     const niTotal = ok(g("net_income_total")) ? g("net_income_total") : ok(pretax) && ok(tax) ? pretax - tax : null;
     const ni = g("net_income");
     let t = ok(tax) && ok(pretax) && pretax > 0 ? tax / pretax : null;
-    const tUsed = ok(t) && t >= 0 && t <= 0.5 ? t : 0.25;
+    // Taux d'impôt normatif : taux effectif moyen des 3 derniers exercices (borné à 0–50 %).
+    const tj = [i, i - 1, i - 2].map((j) => { const x = g("tax", j), p = g("pretax", j); return ok(x) && ok(p) && p > 0 ? x / p : null; })
+      .filter((v) => ok(v) && v >= 0 && v <= 0.5);
+    const tUsed = tj.length ? tj.reduce((s, v) => s + v, 0) / tj.length : 0.25;
 
-    // Rentabilité.
-    const ropat = ok(ebit) ? ebit * (1 - tUsed) : null;           // résultat d'exploitation après IS
+    // Résultat d'exploitation courant (Vernimmen : rentabilité durable, hors éléments non récurrents).
+    // 1. ligne « résultat opérationnel courant » publiée ; 2. résultat publié + dépréciations d'actifs − plus-values
+    // de cession, seulement si les dépréciations sont identifiées (sinon le retraitement serait biaisé) ;
+    // 3. marge d'exploitation moyenne des 3 derniers exercices × CA (résultat normatif) ; 4. résultat publié.
+    const ebitCourant = (j) => {
+      const e = g("operating_income", j), r = g("revenue", j), roc = g("roc", j), imp = g("impair", j);
+      if (!ok(e)) return { v: null, src: null };
+      if (ok(roc) && Math.abs(roc) <= 3 * Math.abs(e) + 0.05 * Math.abs(r || 0)) return { v: roc, src: "roc" };
+      if (ok(imp)) {
+        const dg = ok(g("disposal_gain", j)) ? g("disposal_gain", j) : ok(g("disposal_adj", j)) ? -g("disposal_adj", j) : 0;
+        return { v: e + imp - dg, src: "retraite" };
+      }
+      const ms = [j, j - 1, j - 2].map((k) => { const x = g("operating_income", k), y = g("revenue", k); return ok(x) && ok(y) && y > 0 ? x / y : null; }).filter(ok);
+      if (ms.length >= 2 && ok(r) && r > 0) return { v: ms.reduce((s, v) => s + v, 0) / ms.length * r, src: "moyenne" };
+      return { v: e, src: "publie" };
+    };
+    const EC = ebitCourant(i);
+    const ebitC = EC.v;
+    // Éléments non récurrents retirés trois années de suite (> 10 % du résultat) : ils ne sont plus exceptionnels.
+    const nrRepeat = [i, i - 1, i - 2].every((j) => {
+      const x = ebitCourant(j), e = g("operating_income", j);
+      return (x.src === "roc" || x.src === "retraite") && ok(e) && e !== 0 && (x.v - e) / Math.abs(e) > 0.1;
+    });
+
+    // Rentabilité (sur le résultat courant).
+    const ropat = ok(ebitC) ? ebitC * (1 - tUsed) : null;          // résultat d'exploitation courant après IS
+    const ropatPub = ok(ebit) ? ebit * (1 - tUsed) : null;
     const margin = ok(ropat) && ok(rev) && rev > 0 ? ropat / rev : null;
     // Capitaux employés = capitaux propres + dette nette (passif du bilan économique), en moyenne sur l'exercice
     // (ouverture et clôture), comme dans les rentabilités publiées (ROACE). À défaut, l'actif économique calculé à l'actif.
@@ -70,6 +98,7 @@ const Analyse = (() => {
     const ceAvg = ok(ce1) ? (ok(ce0) ? (ce0 + ce1) / 2 : ce1) : ok(ae) && ae > 0 ? ae : null;
     const rotation = ok(rev) && ok(ceAvg) && rev > 0 ? rev / ceAvg : null;
     const roce = ok(ropat) && ok(ceAvg) ? ropat / ceAvg : null;
+    const roceReported = ok(ropatPub) && ok(ceAvg) ? ropatPub / ceAvg : null;
     const interest = g("interest");
     const iCost = ok(interest) && ok(netDebt) && netDebt > 0 ? interest * (1 - tUsed) / netDebt : null;
     const de = ok(netDebt) && ok(eq) && eq > 0 ? netDebt / eq : null;
@@ -84,7 +113,7 @@ const Analyse = (() => {
       cfo: g("cfo"), capex: g("capex"), cfi: g("cfi"), cff: g("cff"), acq: g("acquisitions"),
       div: g("dividends"), buyback: g("buybacks"), issue: g("share_issue"),
       debtIn: g("debt_issued"), debtOut: g("debt_repaid"),
-      ropat, margin, rotation, roce, ce: ce1, ceAvg, iCost, de, roeTheo, roe, interest,
+      ropat, margin, rotation, roce, roceReported, ebitC, ebitSrc: EC.src, nrRepeat, ce: ce1, ceAvg, iCost, de, roeTheo, roe, interest,
       bfrDays: ok(bfr) && ok(rev) && rev > 0 ? bfr / rev * 365 : null,
       recvDays: ok(g("receivables")) && ok(rev) && rev > 0 ? g("receivables") / rev * 365 : null,
       invDays: ok(g("inventory")) && ok(rev) && rev > 0 ? g("inventory") / rev * 365 : null,
@@ -812,8 +841,11 @@ const Analyse = (() => {
   function conclusion(c, f, i, st, V) {
     const cur = esc(c.cur);
     const sg = (v) => `<span class="${ok(v) ? (v >= 0 ? "pos" : "neg") : ""}">${ok(v) ? (v >= 0 ? "+" : "") + nf1.format(v * 100) + " pts" : "—"}</span>`;
+    const SRC = { roc: "résultat opérationnel courant publié", retraite: "résultat publié + dépréciations − plus-values de cession",
+      moyenne: "marge d'exploitation moyenne sur 3 ans (résultat normatif)", publie: "résultat publié (aucun élément non récurrent identifiable)" };
     const share = `<div class="kpis">
-        ${kpi("ROCE après IS", P(f.roce), bench(st, "roce", f.roce, P))}
+        ${kpi("ROCE courant après IS", P(f.roce), `<small class="bench">${esc(SRC[f.ebitSrc] || "")}</small>` + bench(st, "roce", f.roce, P))}
+        ${kpi("ROCE sur le résultat publié", P(f.roceReported), `<small class="bench">écart : éléments non récurrents</small>`)}
         ${kpi("Coût du capital (CMPC)", P(f.k), `<small class="bench">${nf1.format(f.rates.rf)} % + bêta d'actif ${d2(f.betaA)} × ${nf1.format(f.rates.prm)} %</small>`)}
         ${kpi("ROCE − coût du capital", sg(f.spread))}
         ${kpi(`Valeur créée ${state.meta.years[i]} (M ${cur})`, `<span class="${ok(f.eva) ? (f.eva >= 0 ? "pos" : "neg") : ""}">${M(f.eva)}</span>`, `<small class="bench">(ROCE − CMPC) × capitaux employés</small>`)}
@@ -834,9 +866,11 @@ const Analyse = (() => {
         ${kpi("Altman Z''", ok(f.zScore) ? nf1.format(f.zScore) : "—", `<small class="bench">> 2,6 risque faible ; < 1,1 risque élevé</small>`)}
       </div>`;
     return step("✓", "Conclusion de l'analyse financière", "les réponses aux deux questions",
-      card("Du point de vue des actionnaires : l'entreprise crée-t-elle de la valeur ?", "", `<p class="verdict-line">${light(V.val[0])}${V.val[1]}</p>` + share,
+      card("Du point de vue des actionnaires : l'entreprise crée-t-elle de la valeur ?", "", `<p class="verdict-line">${light(V.val[0])}${V.val[1]}</p>` +
+        (f.nrRepeat ? `<p class="note warn">⚠ Des éléments « non récurrents » sont retirés trois années de suite : ils font partie de l'activité. Le ROCE sur le résultat publié (${P(f.roceReported)}) est ici le plus prudent.</p>` : "") + share,
         `Une entreprise crée de la valeur quand sa rentabilité économique après impôt (ROCE) dépasse le coût moyen pondéré du capital (CMPC) exigé par
-         actionnaires et prêteurs. L'effet de levier augmente le ROE mais aussi le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`) +
+         actionnaires et prêteurs. Le ROCE se juge sur le résultat d'exploitation courant, hors éléments réellement exceptionnels (dépréciations, plus-values
+         de cession), avec un taux d'impôt normatif (moyenne sur 3 ans) et des capitaux employés moyens. L'effet de levier augmente le ROE mais aussi le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`) +
       card("Du point de vue des prêteurs : peut-elle rembourser ses dettes ?", "", `<p class="verdict-line">${light(V.solv[0])}${V.solv[1]}</p>` + lend,
         "Solvabilité : la dette se rembourse par l'exploitation (dette nette / EBE, couverture des intérêts, flux disponible). Liquidité : les échéances des dettes face à la vitesse de transformation des actifs en trésorerie."));
   }
@@ -1145,7 +1179,7 @@ const Analyse = (() => {
     let s4 = "grey", t4 = "Rentabilité non calculable.";
     if (ok(f.roce)) {
       s4 = f.roce >= w + 0.02 ? "green" : f.roce >= w - 0.01 ? "orange" : "red";
-      t4 = `ROCE après IS ${P(f.roce)} pour un coût du capital du secteur de ${P(w)} ; ROE ${P(f.roe)}.`;
+      t4 = `ROCE courant après IS ${P(f.roce)}${ok(f.roceReported) && Math.abs(f.roceReported - f.roce) > 0.005 ? ` (${P(f.roceReported)} sur le résultat publié)` : ""} pour un coût du capital de ${P(w)} ; ROE ${P(f.roe)}.`;
     }
     verdict.push([4, "Rentabilité", s4, t4]);
     // Conclusion
@@ -1155,7 +1189,7 @@ const Analyse = (() => {
     const val = s4 === "green" ? ["green", "Crée de la valeur : rentabilité économique supérieure au coût du capital."]
       : s4 === "red" ? ["red", "Détruit de la valeur : rentabilité économique inférieure au coût du capital."]
         : s4 === "grey" ? ["grey", "Création de valeur non évaluable."] : ["orange", "Création de valeur à la limite."];
-    const valTxt = `${val[1]}${ok(f.eva) ? ` ROCE après IS ${P(f.roce)} contre un coût du capital de ${P(f.k)} : ${M(f.eva)} M ${esc(c.cur)} de valeur ${f.eva >= 0 ? "créée" : "détruite"} sur l'exercice.` : ""}`;
+    const valTxt = `${val[1]}${ok(f.eva) ? ` ROCE courant après IS ${P(f.roce)} contre un coût du capital de ${P(f.k)} : ${M(f.eva)} M ${esc(c.cur)} de valeur ${f.eva >= 0 ? "créée" : "détruite"} sur l'exercice.` : ""}`;
     const solvTxt = `${solv[1]}${cash ? "" : ok(f.ndEbitda) ? ` Dette nette / EBE ${X(f.ndEbitda)}, couverture des intérêts ${X(f.coverage)}.` : ""}${ok(f.liqGen) ? ` Liquidité générale ${nf1.format(f.liqGen)}.` : ""}${ok(f.zScore) ? ` Altman ${nf1.format(f.zScore)}.` : ""}`;
     return { rows: verdict, val: [val[0], valTxt], solv: [solv[0], solvTxt] };
   }
