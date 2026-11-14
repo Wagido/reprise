@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reprise — comparables cotés</title>
+<meta name="description" content="Classement des sociétés cotées en France et aux USA à partir de leurs comptes publiés : compte de résultat, bilan, flux de trésorerie.">
+<meta name="theme-color" content="#1d4e5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <img src="icon.svg" alt="" width="28" height="28">
+    <div>
+      <h1>Reprise</h1>
+      <p class="sub" id="dataInfo">Chargement des données…</p>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-view="list">Sociétés</button>
+    <button role="tab" aria-selected="false" data-view="sectors">Secteurs</button>
+    <button role="tab" aria-selected="false" data-view="help">Méthode</button>
+  </nav>
+</header>
+
+<section class="filters" id="filters">
+  <input type="search" id="q" placeholder="Nom, ticker, activité…" aria-label="Recherche">
+  <label>Pays
+    <select id="country"><option value="">Tous</option><option value="FR">France</option><option value="US">USA</option></select>
+  </label>
+  <label>Secteur <select id="sector"><option value="">Tous</option></select></label>
+  <label>Exercice <select id="year"></select></label>
+  <label>CA min (M€) <input type="number" id="revMin" inputmode="numeric" placeholder="0"></label>
+  <label>CA max (M€) <input type="number" id="revMax" inputmode="numeric" placeholder="∞"></label>
+  <label>Marge EBITDA min (%) <input type="number" id="ebitdaMin" inputmode="numeric" placeholder="—"></label>
+  <label>Dette nette / EBITDA max <input type="number" id="levMax" step="0.5" inputmode="decimal" placeholder="—"></label>
+  <label class="check"><input type="checkbox" id="profit3"> Bénéficiaire 3 ans de suite</label>
+  <label class="check"><input type="checkbox" id="complete"> Comptes complets seulement</label>
+  <div class="actions">
+    <button id="reset" class="ghost">Réinitialiser</button>
+    <button id="csv">Exporter CSV</button>
+  </div>
+</section>
+
+<main>
+  <section id="view-list" class="view">
+    <p class="count" id="count"></p>
+    <div class="tablewrap">
+      <table id="table">
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <button id="more" class="ghost wide" hidden>Afficher plus</button>
+  </section>
+
+  <section id="view-sectors" class="view" hidden>
+    <p class="count">Médianes par secteur, sur les sociétés qui passent les filtres (hors secteur).</p>
+    <div class="tablewrap"><table id="sectorTable"></table></div>
+  </section>
+
+  <section id="view-help" class="view prose" hidden>
+    <h2>D'où viennent les chiffres</h2>
+    <ul>
+      <li><b>USA</b> : SEC EDGAR, API XBRL « frames » (rapports 10-K, normes US GAAP). Secteur : code SIC déclaré à la SEC.</li>
+      <li><b>France</b> : rapports financiers annuels au format ESEF (normes IFRS) déposés à l'AMF, collectés sur filings.xbrl.org. Données disponibles à partir de l'exercice 2020. Le secteur est <i>estimé</i> à partir du nom et de la description de l'activité.</li>
+      <li>Montants en millions d'euros, convertis au taux moyen annuel (approximatif). La fiche société affiche aussi la devise d'origine.</li>
+      <li>Les sociétés utilisent parfois leurs propres étiquettes pour certaines lignes (dette, capex…). Elles apparaissent alors vides : c'est une absence de donnée, pas un zéro.</li>
+    </ul>
+    <h2>Indicateurs</h2>
+    <dl>
+      <dt>EBITDA</dt><dd>Résultat opérationnel + dotations aux amortissements.</dd>
+      <dt>FCF</dt><dd>Flux de trésorerie d'exploitation − investissements corporels (et incorporels si publiés).</dd>
+      <dt>Conversion cash</dt><dd>FCF / EBITDA. Au-dessus de 50 %, l'EBITDA se transforme bien en trésorerie.</dd>
+      <dt>Dette nette</dt><dd>Dettes financières (long + court terme) − trésorerie, hors dettes de location.</dd>
+      <dt>Levier</dt><dd>Dette nette / EBITDA. Un rachat à crédit (LBO) supporte en général 3 à 4× l'EBITDA au total : une cible déjà endettée laisse moins de marge.</dd>
+      <dt>ROCE</dt><dd>EBIT / (capitaux propres + dette nette).</dd>
+      <dt>BFR (jours)</dt><dd>(Créances clients + stocks − dettes fournisseurs) / CA × 365.</dd>
+      <dt>Croissance</dt><dd>Taux de croissance annuel moyen du CA sur 3 ans.</dd>
+    </dl>
+    <h2>Score reprise (0–100)</h2>
+    <p>Classement relatif parmi les sociétés affichées, pondéré : marge EBITDA 25 %, conversion cash 20 %, levier faible 20 %, croissance 20 %, régularité 15 % (années bénéficiaires et stabilité de la marge). C'est un outil de tri, pas une recommandation.</p>
+  </section>
+</main>
+
+<aside id="detail" class="detail" hidden aria-modal="true" role="dialog">
+  <div class="detail-inner">
+    <button class="close" id="closeDetail" aria-label="Fermer">×</button>
+    <div id="detailBody"></div>
+  </div>
+</aside>
+
+<script src="app.js"></script>
+<script src="analyse.js"></script>
+</body>
+</html>

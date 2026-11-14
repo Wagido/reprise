@@ -1,0 +1,61 @@
+# Collecte hebdomadaire des comptes (SEC + ESEF) puis publication sur GitHub Pages.
+name: Collecte et publication
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # chaque lundi vers 4 h UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Le cache garde les rapports déjà lus et les secteurs SEC d'une semaine sur l'autre.
+      - uses: actions/cache@v4
+        with:
+          path: cache
+          key: data-cache-${{ github.run_id }}
+          restore-keys: data-cache-
+      - name: USA (SEC EDGAR)
+        env:
+          # À remplacer par votre contact dans Settings > Secrets and variables > Actions > Variables.
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT || 'reprise-screener contact@example.com' }}
+        run: python collect/sec.py
+      - name: France (ESEF)
+        run: python collect/esef.py
+      - name: Fusion
+        run: python collect/build.py
+      - name: Site
+        run: |
+          mkdir -p _site/data
+          cp index.html app.js analyse.js style.css sw.js manifest.webmanifest icon.svg _site/
+          cp data/companies.json _site/data/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,9 @@
+{
+  "name": "Reprise — comparables cotés",
+  "short_name": "Reprise",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f8",
+  "theme_color": "#1d4e5f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
