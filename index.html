@@ -22,6 +22,7 @@
   <nav class="tabs" role="tablist">
     <button role="tab" aria-selected="true" data-view="list">Sociétés</button>
     <button role="tab" aria-selected="false" data-view="sectors">Secteurs</button>
+    <button role="tab" aria-selected="false" data-view="compare">Comparer</button>
     <button role="tab" aria-selected="false" data-view="help">Méthode</button>
   </nav>
 </header>
@@ -60,6 +61,23 @@
   <section id="view-sectors" class="view" hidden>
     <p class="count">Médianes par secteur, sur les sociétés qui passent les filtres (hors secteur).</p>
     <div class="tablewrap"><table id="sectorTable"></table></div>
+  </section>
+
+  <section id="view-compare" class="view" hidden>
+    <div class="card">
+      <h3>Marge × rotation = rentabilité économique</h3>
+      <p class="note">Chaque point place une activité selon sa <b>marge d'exploitation après impôt</b> (verticale) et la <b>rotation de son actif économique</b>
+        (horizontale, CA / actif économique). Les courbes relient les points de même ROCE : à gauche, les métiers très capitalistiques
+        (satellites, énergie, télécoms) ont besoin de fortes marges ; à droite, la distribution tourne vite son actif avec des marges faibles.</p>
+      <div class="chips" role="radiogroup" aria-label="Affichage">
+        <button class="chip" data-mode="sectors" aria-pressed="true">Secteurs (médianes)</button>
+        <button class="chip" data-mode="companies" aria-pressed="false">Sociétés</button>
+      </div>
+      <div class="scatter-wrap"><svg id="scatter" role="img" aria-label="Marge d'exploitation après impôt en fonction de la rotation de l'actif économique"></svg>
+        <div id="tip" class="tip" hidden></div></div>
+      <p class="note" id="scatterNote"></p>
+    </div>
+    <div class="tablewrap"><table id="compareTable"></table></div>
   </section>
 
   <section id="view-help" class="view prose" hidden>

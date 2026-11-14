@@ -238,3 +238,25 @@ details.method summary { cursor: pointer; color: var(--accent); font-weight: 600
 details.method ol { padding-left: 20px; }
 details.method li { margin-bottom: 6px; }
 #methodPlan ol { padding-left: 20px; } #methodPlan li { margin-bottom: 6px; }
+
+/* ---------- Comparer : nuage marge × rotation ---------- */
+.scatter-wrap { position: relative; }
+#scatter { width: 100%; height: auto; display: block; }
+#scatter .grid { stroke: var(--line); stroke-width: 1; }
+#scatter .grid.zero { stroke: var(--muted); }
+#scatter .ax { fill: var(--muted); font-size: 11px; }
+#scatter .ax.t { font-size: 12px; }
+#scatter .iso { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .7; }
+#scatter .iso-l { fill: var(--muted); font-size: 11px; }
+#scatter .bubble { fill: var(--bar1); fill-opacity: .8; stroke: var(--panel); stroke-width: 2; }
+#scatter .dot { fill: var(--bar1); fill-opacity: .75; stroke: var(--panel); stroke-width: 1.5; }
+#scatter .off { fill: var(--c-other); fill-opacity: .35; }
+#scatter .lbl { fill: var(--ink); font-size: 12px; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; }
+#scatter .hit { fill: transparent; }
+#scatter .pt { cursor: pointer; }
+#scatter .pt:hover .bubble, #scatter .pt:hover .dot { stroke: var(--ink); }
+.tip {
+  position: absolute; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 9px; font-size: 12.5px; box-shadow: var(--shadow); max-width: 260px; z-index: 3;
+}
+#compareTable tbody tr { cursor: pointer; }

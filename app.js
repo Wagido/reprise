@@ -265,6 +265,135 @@ function renderSectors() {
     "</tbody>";
 }
 
+// ---------- Comparer : marge × rotation ----------
+function renderCompare() {
+  const mode = state.compareMode || "sectors";
+  document.querySelectorAll("#view-compare [data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  const i = state.meta.years.indexOf(Number($("year").value));
+  const focus = $("sector").value;
+  const rows = compute(true).map((r) => ({ c: r.c, f: Analyse.figures(r.c, i) }))
+    .filter((r) => ok(r.f.margin) && ok(r.f.rotation) && r.f.rotation > 0 && r.f.ae > 0);
+  // Cadrage : large pour les sociétés, resserré sur les médianes pour les secteurs.
+  let X0 = 0.1, X1 = 10, Y0 = -0.1, Y1 = 0.4;
+  if (mode === "sectors") { X0 = 0.1; X1 = 5; Y0 = -0.25; Y1 = 0.25; }
+  const W = 760, H = 460, L = 52, R = 16, T = 14, B = 40;
+  const lx = (v) => L + (Math.log10(Math.min(X1, Math.max(X0, v))) - Math.log10(X0)) / (Math.log10(X1) - Math.log10(X0)) * (W - L - R);
+  const ly = (v) => T + (Y1 - Math.min(Y1, Math.max(Y0, v))) / (Y1 - Y0) * (H - T - B);
+  let g = "";
+  // Grille et axes, discrets.
+  for (const v of [0.1, 0.2, 0.5, 1, 2, 5, 10].filter((v) => v >= X0 && v <= X1)) g += `<line class="grid" x1="${lx(v)}" x2="${lx(v)}" y1="${T}" y2="${H - B}"/><text class="ax" x="${lx(v)}" y="${H - B + 16}" text-anchor="middle">${nf1.format(v).replace(",0", "")}×</text>`;
+  for (let v = Math.ceil(Y0 * 20) / 20; v <= Y1 + 1e-9; v += 0.05) if (Math.round(v * 100) % (mode === "sectors" ? 5 : 10) === 0) g += `<line class="grid${Math.abs(v) < 1e-9 ? " zero" : ""}" x1="${L}" x2="${W - R}" y1="${ly(v)}" y2="${ly(v)}"/><text class="ax" x="${L - 6}" y="${ly(v) + 4}" text-anchor="end">${nf0.format(Math.round(v * 100) || 0)} %</text>`;
+  g += `<text class="ax t" x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">Rotation de l'actif économique (CA / actif économique, échelle log)</text>`;
+  g += `<text class="ax t" transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle">Marge d'exploitation après IS</text>`;
+  // Courbes d'iso-ROCE : marge = ROCE / rotation.
+  for (const r of [0.05, 0.1, 0.15, 0.2]) {
+    const pts = [];
+    for (let k = 0; k <= 60; k++) {
+      const x = Math.pow(10, Math.log10(X0) + k / 60 * (Math.log10(X1) - Math.log10(X0)));
+      const y = r / x;
+      if (y <= Y1 && y >= Y0) pts.push(`${lx(x).toFixed(1)},${ly(y).toFixed(1)}`);
+    }
+    if (pts.length > 1) {
+      g += `<polyline class="iso" points="${pts.join(" ")}"/>`;
+      // Étiquette posée sur la courbe, à une hauteur différente pour chaque ROCE.
+      const yl = Y1 - (Y1 - Math.max(Y0, 0)) * (0.12 + 0.2 * [0.05, 0.1, 0.15, 0.2].indexOf(r));
+      const xl = r / yl;
+      if (xl >= X0 && xl <= X1) g += `<text class="iso-l" x="${lx(xl) + 5}" y="${ly(yl) - 3}">ROCE ${nf0.format(r * 100)} %</text>`;
+    }
+  }
+  let marks = "", table = "";
+  const tipData = [];
+  if (mode === "sectors") {
+    const by = {};
+    for (const r of rows) (by[r.c.s] ||= []).push(r.f);
+    const med = (a) => { const s = a.filter(ok).sort((p, q) => p - q); return s.length ? (s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
+    const pts = Object.entries(by).filter(([, fs]) => fs.length >= 5).map(([s, fs]) => ({
+      s, n: fs.length, m: med(fs.map((f) => f.margin)), rot: med(fs.map((f) => f.rotation)), roce: med(fs.map((f) => f.roce)),
+    })).sort((p, q) => q.n - p.n);
+    const maxN = Math.max(...pts.map((p) => p.n), 1);
+    const placed = [];
+    // Place le nom à droite, à gauche, au-dessus ou en dessous : la première position libre.
+    const place = (cx, cy, rad, text) => {
+      const w = text.length * 6.6 + 4, h = 14;
+      const cands = [[cx + rad + 4, cy + 4, "start"], [cx - rad - 4, cy + 4, "end"], [cx, cy - rad - 5, "middle"], [cx, cy + rad + 14, "middle"],
+        [cx + rad + 4, cy + 18, "start"], [cx + rad + 4, cy - 10, "start"], [cx - rad - 4, cy + 18, "end"], [cx - rad - 4, cy - 10, "end"]];
+      for (const [x, y, anchor] of cands) {
+        const x0 = anchor === "start" ? x : anchor === "end" ? x - w : x - w / 2;
+        const box = [x0, y - h + 3, x0 + w, y + 3];
+        if (box[0] < L || box[2] > W - R) continue;
+        if (!placed.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) { placed.push(box); return [x, y, anchor]; }
+      }
+      return null;
+    };
+    // Bulles d'abord (réservent leur place), puis les noms.
+    pts.forEach((p) => { const rad = 6 + 14 * Math.sqrt(p.n / maxN); placed.push([lx(p.rot) - rad, ly(p.m) - rad, lx(p.rot) + rad, ly(p.m) + rad]); });
+    pts.forEach((p, k) => {
+      const rad = 6 + 14 * Math.sqrt(p.n / maxN);
+      const on = !focus || focus === p.s;
+      const pos = place(lx(p.rot), ly(p.m), rad, shortSector(p.s));
+      tipData.push(`<b>${esc(state.meta.sectors[p.s])}</b><br>${p.n} sociétés · marge ${pct(p.m)} · rotation ${nf1.format(p.rot)}× · ROCE ${pct(p.roce)}`);
+      marks += `<g class="pt" data-tip="${k}" data-sector="${p.s}"><circle cx="${lx(p.rot)}" cy="${ly(p.m)}" r="${rad + 8}" class="hit"/>
+        <circle cx="${lx(p.rot)}" cy="${ly(p.m)}" r="${rad}" class="bubble${on ? "" : " off"}"/>
+        ${pos ? `<text class="lbl" x="${pos[0]}" y="${pos[1]}" text-anchor="${pos[2]}">${esc(shortSector(p.s))}</text>` : ""}</g>`;
+    });
+    table = `<thead><tr><th class="l">Secteur</th><th>Sociétés</th><th>Marge d'exploitation après IS</th><th>Rotation</th><th>ROCE après IS</th></tr></thead><tbody>` +
+      pts.map((p) => `<tr data-sector="${p.s}"><td class="l">${esc(state.meta.sectors[p.s])}</td><td>${p.n}</td><td>${pct(p.m, true)}</td><td>${nf1.format(p.rot)}×</td><td>${pct(p.roce, true)}</td></tr>`).join("") + "</tbody>";
+    $("scatterNote").textContent = "Médianes des sociétés qui passent les filtres (hors filtre secteur), secteurs d'au moins 5 sociétés. Taille du point : nombre de sociétés. Cliquer un secteur pour voir ses sociétés.";
+  } else {
+    const shown = rows.slice(0, 1500);
+    shown.sort((a, b) => (a.c.s === focus) - (b.c.s === focus));
+    shown.forEach((r, k) => {
+      const on = !focus || r.c.s === focus;
+      tipData.push(`<b>${esc(r.c.n)}</b> (${r.c.c})<br>${esc(state.meta.sectors[r.c.s])}<br>marge ${pct(r.f.margin)} · rotation ${nf1.format(r.f.rotation)}× · ROCE ${pct(r.f.roce)}`);
+      marks += `<g class="pt" data-tip="${k}" data-id="${esc(r.c.id)}"><circle cx="${lx(r.f.rotation)}" cy="${ly(r.f.margin)}" r="9" class="hit"/>
+        <circle cx="${lx(r.f.rotation)}" cy="${ly(r.f.margin)}" r="4" class="dot${on ? "" : " off"}"/></g>`;
+    });
+    table = "";
+    $("scatterNote").textContent = `${nf0.format(shown.length)} sociétés${rows.length > shown.length ? " (les 1 500 premières)" : ""}. ${focus ? `En couleur : ${state.meta.sectors[focus]} ; en gris : les autres secteurs. ` : "Choisir un secteur dans les filtres pour le faire ressortir. "}Valeurs hors cadre ramenées au bord. Cliquer un point pour ouvrir la fiche.`;
+  }
+  const svg = $("scatter");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = g + marks;
+  $("compareTable").innerHTML = table;
+  $("compareTable").parentElement.hidden = !table;
+  state.tips = tipData;
+}
+
+function bindCompare() {
+  document.querySelectorAll("#view-compare [data-mode]").forEach((b) => (b.onclick = () => { state.compareMode = b.dataset.mode; renderCompare(); }));
+  const svg = $("scatter"), tip = $("tip");
+  svg.addEventListener("pointermove", (e) => {
+    const p = e.target.closest(".pt");
+    if (!p) { tip.hidden = true; return; }
+    tip.innerHTML = state.tips[Number(p.dataset.tip)];
+    const box = svg.parentElement.getBoundingClientRect();
+    tip.hidden = false;
+    const x = e.clientX - box.left, y = e.clientY - box.top;
+    tip.style.left = Math.min(x + 12, box.width - tip.offsetWidth - 4) + "px";
+    tip.style.top = Math.max(0, y - tip.offsetHeight - 10) + "px";
+  });
+  svg.addEventListener("pointerleave", () => (tip.hidden = true));
+  svg.addEventListener("click", (e) => {
+    const p = e.target.closest(".pt");
+    if (!p) return;
+    if (p.dataset.id) { const c = state.companies.find((x) => x.id === p.dataset.id); if (c) openDetail(c); return; }
+    if (p.dataset.sector) {
+      $("sector").value = p.dataset.sector;
+      state.compareMode = "companies";
+      renderCompare();
+      saveFilters();
+    }
+  });
+  $("compareTable").onclick = (e) => {
+    const tr = e.target.closest("tr[data-sector]");
+    if (!tr) return;
+    $("sector").value = tr.dataset.sector;
+    state.compareMode = "companies";
+    renderCompare();
+    saveFilters();
+  };
+}
+
 // ---------- Fiche société ----------
 function barChart(c) {
   const ys = state.meta.years;
@@ -442,6 +571,7 @@ function loadFilters() {
 function render() {
   if (state.view === "list") renderList();
   else if (state.view === "sectors") renderSectors();
+  else if (state.view === "compare") renderCompare();
   saveFilters();
 }
 
@@ -454,7 +584,7 @@ function onFilter() {
 function setView(v) {
   state.view = v;
   document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const s of ["list", "sectors", "help"]) $("view-" + s).hidden = s !== v;
+  for (const s of ["list", "sectors", "compare", "help"]) $("view-" + s).hidden = s !== v;
   $("filters").hidden = v === "help";
   render();
 }
@@ -526,6 +656,7 @@ async function init() {
   $("year").value = String(defaultYear());
   loadFilters();
   bind();
+  bindCompare();
   render();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
