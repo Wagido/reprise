@@ -20,15 +20,21 @@
       <p class="sub" id="dataInfo">Chargement des données…</p>
     </div>
   </div>
-  <nav class="tabs" role="tablist">
-    <button role="tab" aria-selected="true" data-view="list">Sociétés</button>
-    <button role="tab" aria-selected="false" data-view="sectors">Secteurs</button>
-    <button role="tab" aria-selected="false" data-view="compare">Comparer</button>
-    <button role="tab" aria-selected="false" data-view="pick">Stock picking</button>
-    <button role="tab" aria-selected="false" data-view="pme">PME</button>
-    <button role="tab" aria-selected="false" data-view="lbo">Reprise LBO</button>
-    <button role="tab" aria-selected="false" data-view="help">Méthode</button>
-  </nav>
+  <div class="nav">
+    <div class="spaces" role="tablist" aria-label="Usage">
+      <button role="tab" data-space="invest" aria-selected="true">Investir <small>sociétés cotées</small></button>
+      <button role="tab" data-space="reprise" aria-selected="false">Reprendre <small>PME</small></button>
+      <button role="tab" data-space="method" aria-selected="false">Méthode</button>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-view="list" data-in="invest">Sociétés</button>
+      <button role="tab" aria-selected="false" data-view="pick" data-in="invest">Stock picking</button>
+      <button role="tab" aria-selected="false" data-view="sectors" data-in="invest">Secteurs</button>
+      <button role="tab" aria-selected="false" data-view="compare" data-in="invest">Comparer</button>
+      <button role="tab" aria-selected="false" data-view="pme" data-in="reprise">Carte des PME</button>
+      <button role="tab" aria-selected="false" data-view="lbo" data-in="reprise">Simulateur LBO</button>
+    </nav>
+  </div>
 </header>
 
 <section class="filters" id="filters">

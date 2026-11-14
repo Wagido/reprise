@@ -223,6 +223,47 @@ const PME = (() => {
       <div class="legend"><span><i style="background:var(--bar1)"></i>CA</span><span><i style="background:var(--bar2)"></i>EBE</span><span><i style="background:var(--bar3)"></i>Résultat net</span></div></div>`;
   }
 
+  // Secteur coté correspondant à un code NAF (pour les comparables).
+  function listedSector(naf, sec) {
+    const d = parseInt((naf || "").slice(0, 2), 10);
+    if ([6, 9, 19].includes(d)) return "energie";
+    if ([5, 7, 8, 20, 22, 23, 24].includes(d)) return "materiaux";
+    if (d === 21 || d === 75 || (d >= 86 && d <= 88)) return "sante";
+    if (d >= 10 && d <= 12) return "conso_base";
+    if (d === 26 || d === 62 || d === 63) return "tech";
+    if (d >= 58 && d <= 61) return "telecom";
+    if (d === 35 || (d >= 36 && d <= 39)) return "utilities";
+    if (d === 29) return "conso_cyc";
+    const bySec = { A: "conso_base", C: "industrie", F: "industrie", G: "conso_cyc", H: "industrie", I: "conso_cyc",
+      J: "tech", K: "finance", L: "immo", M: "industrie", N: "industrie", Q: "sante", R: "conso_cyc" };
+    return bySec[sec] || "autre";
+  }
+
+  function comparables(o) {
+    if (typeof state === "undefined" || !state.companies || !state.meta) return "";
+    const ls = listedSector(o.naf, o.sec);
+    const ys = state.meta.years, i = ys.length - 2 >= 0 ? ys.indexOf(Math.min(o.y, ys[ys.length - 1])) : -1;
+    const yi = i >= 0 ? i : ys.length - 2;
+    const med = Analyse.sectorMedians(ls, yi);
+    const caEur = o.ca / 1000;   // M€
+    const peers = state.companies.filter((c) => c.s === ls).map((c) => {
+      const f = Analyse.figures(c, yi);
+      const r = ok(f.rev) ? f.rev * (fx(c, ys[yi]) || 1) : null;
+      return { c, f, r };
+    }).filter((x) => ok(x.r) && x.r >= 50 && ok(x.f.evEbitda) && x.f.evEbitda >= 2 && x.f.evEbitda <= 40)
+      .sort((a, b) => Math.abs(Math.log(a.r / caEur)) - Math.abs(Math.log(b.r / caEur))).slice(0, 5);
+    const sugg = ok(med.evEbitda) ? med.evEbitda * 0.6 : null;
+    return `<div class="card"><h3>Comparables cotés <small>— secteur « ${esc(state.meta.sectors[ls] || ls)} »</small></h3>
+      <div class="kpis">
+        <div class="kpi"><b>${ok(med.evEbitda) ? nf1.format(med.evEbitda) + "×" : "—"}</b><span>VE / EBE médian des sociétés cotées du secteur</span></div>
+        <div class="kpi"><b>${ok(sugg) ? nf1.format(sugg) + "×" : "—"}</b><span>Après décote de taille et de liquidité de 40 %</span><small class="bench">les PME se cèdent en général 30 à 50 % sous les multiples boursiers</small></div>
+      </div>
+      ${peers.length ? `<div class="tablewrap"><table><thead><tr><th class="l">Société cotée la plus proche en taille</th><th>CA</th><th>Marge d'EBE</th><th>VE / EBE</th></tr></thead><tbody>
+        ${peers.map((x) => `<tr data-peer="${esc(x.c.id)}"><td class="l">${esc(x.c.n)}<span class="flag">${x.c.c}</span></td><td>${nf0.format(x.r)} M€</td><td>${ok(x.f.ebitdaMargin) ? nf1.format(x.f.ebitdaMargin * 100) + " %" : "—"}</td><td>${nf1.format(x.f.evEbitda)}×</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+      <p class="note">Sociétés cotées d'au moins 50 M€ de CA, aux multiples compris entre 2× et 40×. Elles sont plus grandes que la PME : s'en servir comme repère pour le multiple de reprise ci-dessous, et comparer surtout les marges.</p></div>`;
+  }
+
   const params = { mult: 5, lev: 3.5 };
   try { Object.assign(params, JSON.parse(localStorage.getItem("reprise.pmeParams") || "{}")); } catch (e) { /* ignoré */ }
 
@@ -281,6 +322,7 @@ const PME = (() => {
         ${kpi("Marge nette", P1(o.nm), bench(ss, "nm", o.nm, P1))}
         ${kpi("Résultat courant avant impôt / CA", P1(o.rcai))}</div>
         <p class="note">Les capitaux propres et l'actif économique ne sont pas publiés en montant dans cette base : ROCE et rentabilité des capitaux propres se calculent à partir des comptes complets (fiche officielle).</p>`)}
+      ${comparables(o)}
       ${step("€", "Valorisation et reprise", "multiple d'EBE et montage LBO", `<p><button class="chip tab" id="toLbo" aria-pressed="true">Simuler la reprise de cette société →</button></p><div class="kpis">
         ${kpi("Multiple VE / EBE", `<input class="param" type="number" step="0.5" min="0" max="20" data-pparam="mult" value="${params.mult}">×`, `<small class="bench">PME françaises : souvent 4 à 7×</small>`)}
         ${kpi("Valeur d'entreprise", K(ev))}
@@ -292,6 +334,8 @@ const PME = (() => {
         ${kpi("Années pour rembourser", `${light(!ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red")} ${ok(years) ? nf1.format(years) + " ans" : "impossible"}`, `<small class="bench">avec 70 % de la CAF actuelle</small>`)}</div>
         <p class="note">Ordre de grandeur : la trésorerie, les investissements à venir et la fiscalité de la holding de reprise ne sont pas pris en compte.</p>`)}`;
     $("detailBody").onclick = (e) => {
+      const peer = e.target.closest("tr[data-peer]");
+      if (peer) { const c = state.companies.find((x) => x.id === peer.dataset.peer); if (c) openDetail(c); return; }
       if (e.target.id !== "toLbo") return;
       LBO.fromPme(o);
       $("detail").hidden = true;

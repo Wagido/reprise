@@ -596,14 +596,25 @@ function onFilter() {
   timer = setTimeout(() => { state.shown = PAGE; render(); }, 150);
 }
 
+const SPACE_OF = { list: "invest", pick: "invest", sectors: "invest", compare: "invest", pme: "reprise", lbo: "reprise", help: "method" };
+const lastView = { invest: "list", reprise: "pme", method: "help" };
+
 function setView(v) {
   state.view = v;
-  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === v)));
+  const space = SPACE_OF[v] || "invest";
+  lastView[space] = v;
+  document.querySelectorAll(".spaces button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.space === space)));
+  document.querySelectorAll(".tabs button").forEach((b) => {
+    b.hidden = b.dataset.in !== space;
+    b.setAttribute("aria-selected", String(b.dataset.view === v));
+  });
   for (const s of ["list", "sectors", "compare", "pick", "pme", "lbo", "help"]) $("view-" + s).hidden = s !== v;
-  $("filters").hidden = v === "help" || v === "pme" || v === "lbo";
+  $("filters").hidden = space !== "invest";
+  document.body.dataset.space = space;
   if (v === "pme") PME.show();
   if (v === "lbo") LBO.mount();
   if (v === "pick") Picking.mount();
+  try { localStorage.setItem("reprise.view", v); } catch (e) { /* ignoré */ }
   render();
 }
 
@@ -639,6 +650,7 @@ function bind() {
     setView("list");
   };
   document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => setView(b.dataset.view)));
+  document.querySelectorAll(".spaces button").forEach((b) => (b.onclick = () => setView(lastView[b.dataset.space])));
   $("closeDetail").onclick = () => ($("detail").hidden = true);
   $("detail").onclick = (e) => { if (e.target === $("detail")) $("detail").hidden = true; };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("detail").hidden = true; });
@@ -675,7 +687,9 @@ async function init() {
   loadFilters();
   bind();
   bindCompare();
-  render();
+  let start = "list";
+  try { start = localStorage.getItem("reprise.view") || "list"; } catch (e) { /* ignoré */ }
+  setView(SPACE_OF[start] ? start : "list");
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 

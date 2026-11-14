@@ -308,3 +308,18 @@ table.watch input { width: 100px; border: 1px solid var(--line); border-radius: 
 table.watch input[type="text"] { width: 180px; }
 .pick-params label, .pick-custom label { flex-direction: row; align-items: center; gap: 6px; }
 .warn { color: var(--c-bfr); cursor: help; }
+
+/* ---------- Deux espaces : Investir / Reprendre ---------- */
+.nav { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.spaces { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.spaces button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; }
+.spaces button small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.spaces button[aria-selected="true"] { background: var(--accent); color: var(--panel); }
+.spaces button[aria-selected="true"] small { color: var(--panel); opacity: .8; }
+.tabs button[hidden] { display: none; }
+@media (max-width: 760px) {
+  .nav { align-items: stretch; width: 100%; }
+  .spaces { justify-content: space-between; }
+  .spaces button small { display: none; }
+  .tabs { overflow-x: auto; }
+}
