@@ -58,7 +58,7 @@ const PME = (() => {
   function filters() {
     const num = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v.replace(",", ".")); };
     return { q: $("pQ").value.trim().toLowerCase(), dep: $("pDep").value, sec: $("pSec").value,
-      caMin: num("pCaMin"), caMax: num("pCaMax"), meMin: num("pMeMin"), rembMax: num("pRembMax"), profit: $("pProfit").checked };
+      caMin: num("pCaMin"), caMax: num("pCaMax"), meMin: num("pMeMin"), rembMax: num("pRembMax"), profit: $("pProfit").checked, holdings: $("pHold").checked };
   }
 
   function rankFn(vals, hib) {
@@ -101,6 +101,8 @@ const PME = (() => {
       if (f.meMin !== null && !(ok(o.me) && o.me >= f.meMin)) continue;
       if (f.rembMax !== null && !(ok(o.remb) && o.remb <= f.rembMax)) continue;
       if (f.profit && !(o.rn > 0)) continue;
+      // Holdings, sièges sociaux, gestion de fonds et location immobilière : pas des cibles opérationnelles.
+      if (!f.holdings && /^(64\.2|64\.3|70\.10|68\.2|68\.1|66\.30)/.test(o.naf || "")) continue;
       out.push(o);
     }
     score(out);
@@ -359,8 +361,8 @@ const PME = (() => {
   function bindPme() {
     if (bound) return;
     bound = true;
-    for (const id of ["pQ", "pDep", "pSec", "pCaMin", "pCaMax", "pMeMin", "pRembMax", "pProfit"]) {
-      $(id).addEventListener(id === "pDep" || id === "pSec" || id === "pProfit" ? "change" : "input", () => {
+    for (const id of ["pQ", "pDep", "pSec", "pCaMin", "pCaMax", "pMeMin", "pRembMax", "pProfit", "pHold"]) {
+      $(id).addEventListener(id === "pDep" || id === "pSec" || id === "pProfit" || id === "pHold" ? "change" : "input", () => {
         clearTimeout(timer); timer = setTimeout(() => { st.shown = 100; render(); }, 200);
       });
     }

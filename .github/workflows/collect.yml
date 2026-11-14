@@ -40,6 +40,10 @@ jobs:
         run: python collect/sec.py
       - name: France (ESEF)
         run: python collect/esef.py
+      - name: Europe et Royaume-Uni (ESEF)
+        run: python collect/esef.py --europe
+      - name: Grands groupes étrangers cotés à New York
+        run: python collect/sec_intl.py
       - name: PME françaises
         run: python collect/pme.py
       - name: Cours de Bourse
