@@ -604,7 +604,7 @@ function openDetail(c, yearIdx, tab) {
     ${c.est && c.est.length ? `<p class="desc est">≈ Estimé à partir d'étiquettes propres à la société (à vérifier dans la source) :
       ${c.est.map((f) => esc((state.meta.fields[f] || {}).label || f).toLowerCase()).join(", ")}.</p>` : ""}
     <div class="kpis">
-      ${[["Score reprise", row && ok(row.score) ? row.score + " / 100" : "—"],
+      ${[["Score", row && ok(row.score) ? row.score + " / 100" : "—"],
          ["CA " + ys[i], money(m.rev) + " M€"], ["Marge EBITDA", pct(m.ebitdaMargin, true)],
          ["Croissance 3 ans", pct(m.growth, true)], ["Conversion cash", pct(m.conversion, true)],
          ["Dette nette / EBITDA", mult(m.leverage)], ["ROCE avant IS", pct(m.roce, true)],

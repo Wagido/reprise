@@ -1,8 +1,8 @@
 "use strict";
 // Analyse financière d'une société selon le plan type en 4 étapes : marges,
 // investissements (BFR et immobilisations), financement, rentabilité ; puis
-// solvabilité, création de valeur, et valorisation par multiple avec un
-// montage de reprise (LBO) indicatif. Chaque ratio est comparé au secteur.
+// solvabilité, création de valeur, et valorisation (cours de Bourse et
+// multiple sectoriel). Chaque ratio est comparé au secteur.
 // Dépend de app.js : val(), ok(), esc(), nf0, nf1, state.
 
 const Analyse = (() => {
@@ -832,21 +832,14 @@ const Analyse = (() => {
       chartCard + (table ? card("Distribution année par année", `M ${c.cur}`, table) : "");
   }
 
-  // ---------- Valorisation et reprise ----------
+  // ---------- Valorisation ----------
   function valuation(c, f, i, st) {
-    if (!ok(f.ebitda) || f.ebitda <= 0) return step("€", "Valorisation et reprise", "multiple et montage LBO",
+    if (!ok(f.ebitda) || f.ebitda <= 0) return step("€", "Valorisation", "cours de Bourse et multiple du secteur",
       `<div class="card"><p class="note">EBE négatif ou inconnu : pas de valorisation par multiple possible.</p></div>`);
     const secMult = st.evEbitda && ok(st.evEbitda.median) && st.evEbitda.sorted.length >= 5 ? st.evEbitda.median : null;
     const mult = ok(params.mult) && params.mult > 0 ? params.mult : ok(secMult) ? Math.round(secMult * 10) / 10 : 7;
     const ev = mult * f.ebitda;
     const equity = ok(f.netDebt) ? ev - f.netDebt : null;
-    const debt = Math.min(params.lev * f.ebitda, ev * 0.75);
-    const equityIn = ev - debt;
-    const rate = params.rate / 100;
-    const interest = debt * rate;
-    const fcfPre = ok(f.fcf) ? f.fcf + (ok(f.interest) ? f.interest * (1 - f.tUsed) : 0) : null; // FCF avant frais financiers actuels
-    const free = ok(fcfPre) ? fcfPre - interest * (1 - f.tUsed) : null;
-    const years = ok(free) && free > 0 ? debt / free : null;
     const own = ok(f.evEbitda) ? ` · société elle-même en Bourse : ${X(f.evEbitda)}` : "";
     const pd = state.meta.price_date && state.meta.price_date[c.c];
     const market = ok(f.mcap) ? `<h4 class="sub">En Bourse ${f.mcapLive && pd ? `au ${new Date(pd).toLocaleDateString("fr-FR")}` : "(capitalisation déclarée à la SEC)"}</h4>
@@ -858,29 +851,18 @@ const Analyse = (() => {
         ${kpi("VE / CA", X(f.evSales), bench(st, "evSales", f.evSales, X, false))}
         ${kpi("Rendement du flux disponible", P(f.fcfYield), bench(st, "fcfYield", f.fcfYield, P))}
         ${kpi("Rendement du dividende", P(f.divYield), bench(st, "divYield", f.divYield, P))}
-      </div><h4 class="sub">Prix de reprise par multiple</h4>` : "";
-    const lbLight = !ok(years) ? "red" : years <= 7 ? "green" : years <= 10 ? "orange" : "red";
+      </div><h4 class="sub">Valeur au multiple du secteur</h4>` : "";
     const body = market + `<div class="kpis">
         ${kpi("Multiple VE / EBE retenu", `<input class="param" type="number" step="0.5" min="0" max="60" data-param="mult" value="${mult}">×`,
           `<small class="bench">médiane du secteur ${ok(secMult) ? X(secMult) : "indisponible"}${own}</small>`)}
         ${kpi(`Valeur d'entreprise (M ${esc(c.cur)})`, M(ev))}
         ${kpi("− dette nette", M(f.netDebt))}
         ${kpi(`= valeur des titres (M ${esc(c.cur)})`, M(equity))}
-      </div>
-      <h4 class="sub">Montage LBO indicatif</h4>
-      <div class="kpis">
-        ${kpi("Dette d'acquisition (× EBE)", `<input class="param" type="number" step="0.5" min="0" max="8" data-param="lev" value="${params.lev}">×`)}
-        ${kpi("Taux de la dette", `<input class="param" type="number" step="0.5" min="0" max="20" data-param="rate" value="${params.rate}"> %`)}
-        ${kpi(`Dette levée (M ${esc(c.cur)})`, M(debt))}
-        ${kpi(`Apport en fonds propres (M ${esc(c.cur)})`, M(equityIn), `<small class="bench">${P(equityIn / ev)} du prix</small>`)}
-        ${kpi("Flux disponible après intérêts", M(free))}
-        ${kpi("Années pour rembourser", `${light(lbLight)} ${ok(years) ? nf1.format(years) + " ans" : "impossible"}`)}
       </div>`;
-    return step("€", "Valorisation et reprise", "multiple et montage LBO", card("Prix par multiple et capacité de reprise", "", body,
+    return step("€", "Valorisation", "cours de Bourse et multiple du secteur", card("Valeur par multiple", "", body,
       `Valeur d'entreprise = multiple × EBE ; on retranche la dette nette pour obtenir la valeur des titres. Multiples sectoriels :
-       sociétés cotées (capitalisation au dernier cours connu + dette nette) / EBE ; ils sont en général plus élevés que les multiples
-       de transaction de PME françaises (souvent 4 à 7×). Le remboursement suppose un flux disponible constant, sans croissance ni
-       dividende, après impôt au taux de ${P(f.tUsed)} : c'est un ordre de grandeur, pas un plan de financement. La dette est plafonnée à 75 % du prix.`));
+       médiane des sociétés cotées du secteur (capitalisation au dernier cours connu + dette nette) / EBE. Une valeur des titres
+       supérieure à la capitalisation suggère une décote par rapport au secteur, à confirmer par l'analyse des 4 étapes.`));
   }
 
   // ---------- Scores de qualité ----------
@@ -1060,8 +1042,8 @@ const Analyse = (() => {
     </ol>
     <p><b>Conclusion</b>, rédigée sous les deux angles : « <b>du point de vue des actionnaires</b> » (création de valeur, c'est-à-dire
     ROCE comparé au <b>coût du capital</b>) et « <b>du point de vue des prêteurs</b> » (solvabilité et liquidité).
-    Pour une reprise, la valeur vient ensuite d'un <b>multiple de l'EBE ou du résultat d'exploitation</b>, moins la dette nette.
-    Le montage en LBO dépend de la capacité de la cible à rembourser sa dette avec son flux de trésorerie disponible.</p>
+    La valeur se déduit ensuite d'un <b>multiple de l'EBE ou du résultat d'exploitation</b>, moins la dette nette, ou de
+    l'actualisation des flux de trésorerie disponibles.</p>
     <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
     = résultat d'exploitation × (1 − IS) / actif économique ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
     <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents

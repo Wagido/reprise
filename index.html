@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reprise — comparables cotés</title>
-<meta name="description" content="Classement des sociétés cotées en France et aux USA à partir de leurs comptes publiés : compte de résultat, bilan, flux de trésorerie.">
+<title>Reprise — analyse financière méthode Vernimmen</title>
+<meta name="description" content="Analyse financière en 4 étapes (marges, investissements, financement, rentabilité) des sociétés cotées et des PME françaises, à partir de leurs comptes publiés.">
 <meta name="theme-color" content="#1d4e5f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -131,7 +131,7 @@
   <section id="view-help" class="view prose" hidden>
     <h2>La méthode : le plan d'analyse en 4 étapes</h2>
     <div id="methodPlan"></div>
-    <p class="note">C'est l'ordre suivi par chaque fiche société : une synthèse, puis les étapes 1 à 4, puis la valorisation et la reprise.</p>
+    <p class="note">C'est l'ordre suivi par chaque fiche société : une synthèse, puis les étapes 1 à 4, puis la valorisation ; pour une PME, la fiche se termine par la simulation de reprise.</p>
     <h2>D'où viennent les chiffres</h2>
     <ul>
       <li><b>USA</b> : SEC EDGAR, API XBRL « frames » (rapports 10-K, normes US GAAP). Secteur : code SIC déclaré à la SEC.</li>
@@ -145,12 +145,12 @@
       <dt>FCF</dt><dd>Flux de trésorerie d'exploitation − investissements corporels (et incorporels si publiés).</dd>
       <dt>Conversion cash</dt><dd>FCF / EBITDA. Au-dessus de 50 %, l'EBITDA se transforme bien en trésorerie.</dd>
       <dt>Dette nette</dt><dd>Dettes financières (long + court terme) − trésorerie, hors dettes de location.</dd>
-      <dt>Levier</dt><dd>Dette nette / EBITDA. Un rachat à crédit (LBO) supporte en général 3 à 4× l'EBITDA au total : une cible déjà endettée laisse moins de marge.</dd>
+      <dt>Levier</dt><dd>Dette nette / EBITDA. Repère : 3× au plus.</dd>
       <dt>ROCE</dt><dd>EBIT / (capitaux propres + dette nette).</dd>
       <dt>BFR (jours)</dt><dd>(Créances clients + stocks − dettes fournisseurs) / CA × 365.</dd>
       <dt>Croissance</dt><dd>Taux de croissance annuel moyen du CA sur 3 ans.</dd>
     </dl>
-    <h2>Score reprise (0–100)</h2>
+    <h2>Score (0–100)</h2>
     <p>Classement relatif parmi les sociétés affichées, pondéré : marge EBITDA 25 %, conversion cash 20 %, levier faible 20 %, croissance 20 %, régularité 15 % (années bénéficiaires et stabilité de la marge). C'est un outil de tri, pas une recommandation.</p>
   </section>
 </main>
