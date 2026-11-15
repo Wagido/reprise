@@ -565,3 +565,23 @@ h3.part small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .mult-chart svg text { font-size: 12px; fill: var(--muted); }
 .mult-chart svg text.cv { font-weight: 700; fill: var(--ink); }
 .mult-chart svg text.cm { font-size: 11px; }
+
+/* Recherche : suggestion automatique */
+.filters .qbox { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-self: flex-end; }
+.qbox #q { flex: 1; width: 100%; }
+.qsug { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0; min-width: 300px; margin: 0; padding: 4px 0; list-style: none;
+  background: var(--card, #fff); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 360px; overflow: auto; }
+.qsug li { padding: 7px 12px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.qsug li .flag { margin-left: auto; }
+.qsug li[aria-selected="true"], .qsug li:hover { background: var(--accent-soft); }
+.qsug .star-in { color: var(--c-bfr); }
+/* Portefeuille */
+th.star-col, td.star-col { width: 30px; padding-left: 4px; padding-right: 0; text-align: center; }
+h2 button.star { font-size: 22px; vertical-align: 2px; }
+table.pf input[type="number"] { width: 84px; }
+table.pf td.lights { white-space: nowrap; }
+table.pf td.lights .light { margin-right: 3px; }
+.pf-bars { display: grid; gap: 6px; }
+.pf-bar { display: grid; grid-template-columns: minmax(140px, 260px) 1fr 48px; align-items: center; gap: 10px; font-size: 14px; }
+.pf-bar i { display: block; height: 12px; border-radius: 3px; background: #2a78d6; min-width: 2px; }
+.pf-bar b { text-align: right; }

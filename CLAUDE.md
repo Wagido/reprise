@@ -8,7 +8,7 @@ intéressé par la reprise d'entreprise et le stock picking.
 ## Deux espaces
 - **Investir** (sociétés cotées) : Vue générale (`tdb.js` : partie 1 analyse financière, 2 graphiques par étape ;
   partie 2 marché ; sélecteur Entreprises | Secteurs ; tableau des médianes par secteur en bas — les anciens onglets
-  Secteurs et Ratios y sont fondus), Analyse (tableau + fiche à droite), Stock picking, Banc d'essai (`banc.js` :
+  Secteurs et Ratios y sont fondus), Analyse (tableau + fiche à droite, étoiles ★, filtre Stratégie, suggestion automatique dans la recherche), Mon portefeuille (`picking.js` : valeurs ★, quantités, plus-values, verdicts, idées par stratégie), Banc d'essai (`banc.js` :
   l'analyse de l'outil face au consensus des analystes, CAC 40 ; consensus relevé à la main dans `consensus.json`).
   Style d'origine (en-tête aéré, filtres visibles), mode clair par défaut, plus de service worker.
 - **Reprendre** (PME françaises 2–50 M€), même logique : Vue générale PME (4 nuages, verdicts, `TDB.panel`

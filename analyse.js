@@ -1302,5 +1302,10 @@ const Analyse = (() => {
     const prm = ok(params.prm) ? params.prm : R.erp && ok(R.erp.mature) ? R.erp.mature : 5;
     return (rf + prm) / 100;
   };
-  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, methodHtml: METHOD_HTML, params, setParam, marketK };
+  // Pour le portefeuille : verdict de marché et valeur estimée des capitaux propres.
+  function market(c, i) {
+    const f = figures(c, i), st = sectorStats(c.s, i);
+    return { f, mv: marketVerdict(c, f, i, st), fv: fairValue(c, f, i, st) };
+  }
+  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, methodHtml: METHOD_HTML, params, setParam, marketK };
 })();

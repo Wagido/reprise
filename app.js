@@ -155,6 +155,7 @@ function readFilters() {
     revMin: num("revMin"), revMax: num("revMax"),
     ebitdaMin: num("ebitdaMin"), levMax: num("levMax"),
     profit3: $("profit3").checked, complete: $("complete").checked, banks: $("banks").checked,
+    favOnly: $("favOnly").checked, strat: $("strat").value,
   };
 }
 
@@ -180,6 +181,8 @@ function compute(ignoreSector = false) {
     // sauf si on les demande ou si on filtre explicitement leur secteur.
     if (!f.banks && c.s === "finance" && f.sector !== "finance") continue;
     if (f.complete && !m.complete) continue;
+    if (f.favOnly && !Fav.has(c.id)) continue;
+    if (f.strat && !Picking.passes(c, i, f.strat)) continue;
     out.push({ c, m });
   }
   // Scores de qualité (calculés à la demande, mis en cache par exercice).
@@ -196,8 +199,27 @@ function compute(ignoreSector = false) {
   return out;
 }
 
+// ---------- Valeurs préférées (étoiles) ----------
+// { id: { entry: prix d'achat, qty: nombre d'actions, note } }, dans ce navigateur.
+const Fav = (() => {
+  let w = {};
+  try { w = JSON.parse(localStorage.getItem("reprise.watch") || "{}"); } catch (e) { /* ignoré */ }
+  const save = () => { try { localStorage.setItem("reprise.watch", JSON.stringify(w)); } catch (e) { /* ignoré */ } };
+  return {
+    ids: () => Object.keys(w), has: (id) => !!w[id], get: (id) => w[id],
+    toggle(id) {
+      if (w[id]) delete w[id];
+      else { const c = state.companies.find((x) => x.id === id); w[id] = { entry: c && c.px ? c.px[0] : null, qty: null, note: "" }; }
+      save();
+    },
+    set(id, k, v) { if (w[id]) { w[id][k] = v; save(); } },
+  };
+})();
+const starBtn = (id) => `<button class="star" data-star="${esc(id)}" aria-pressed="${Fav.has(id)}" title="${Fav.has(id) ? "Retirer de mon portefeuille" : "Ajouter à mon portefeuille"}">${Fav.has(id) ? "★" : "☆"}</button>`;
+
 // ---------- Tableau principal ----------
 const COLS = [
+  { key: "fav", label: "★", cls: "star-col", title: "Mes valeurs préférées", get: (r) => (Fav.has(r.c.id) ? 1 : 0), fmt: (r) => starBtn(r.c.id) },
   { key: "name", label: "Société", cls: "l", get: (r) => r.c.n, fmt: (r) => `${esc(r.c.n)}<span class="flag">${r.c.c}${r.c.t ? " · " + esc(r.c.t) : ""}</span>` },
   { key: "sector", label: "Secteur", cls: "l hide-sm", get: (r) => state.meta.sectors[r.c.s], fmt: (r) => esc(shortSector(r.c.s)) },
   { key: "score", label: "Score", get: (r) => r.score, fmt: (r) => (ok(r.score) ? `<span class="score">${r.score}</span>` : '<span class="na">—</span>') },
@@ -251,7 +273,7 @@ function tint(c, r, q) {
 function renderHead() {
   $("thead").innerHTML = visibleCols().map((c) => {
     const on = state.sort.key === c.key;
-    return `<th data-key="${c.key}" class="${c.cls || ""} ${on ? "sorted" : ""}">${c.label}${on ? (state.sort.dir < 0 ? " ↓" : " ↑") : ""}</th>`;
+    return `<th data-key="${c.key}" class="${c.cls || ""} ${on ? "sorted" : ""}"${c.title ? ` title="${esc(c.title)}"` : ""}>${c.label}${on ? (state.sort.dir < 0 ? " ↓" : " ↑") : ""}</th>`;
   }).join("");
 }
 
@@ -608,7 +630,7 @@ function openDetail(c, yearIdx, tab) {
     <p class="desc">Cellule vide : ligne non publiée sous une étiquette standard, pas forcément nulle. Vérifier dans la source officielle.</p>`;
 
   $("detailBody").innerHTML = `
-    <h2>${esc(c.n)}</h2>
+    <h2>${esc(c.n)} ${starBtn(c.id)}</h2>
     <p class="meta">${esc(where)} · ${esc(sector)} · comptes en ${esc(c.cur)}
       ${c.src ? ` · <a href="${esc(c.src)}" target="_blank" rel="noopener">source officielle</a>` : ""}</p>
     ${c.sf !== "SIC" && c.sd ? `<p class="desc">${esc(c.sd)}</p>` : ""}
@@ -634,6 +656,13 @@ function openDetail(c, yearIdx, tab) {
     $("detail").querySelector(".detail-inner").scrollTop = scroll;
   };
   $("detailBody").onclick = (e) => {
+    const sb = e.target.closest("h2 [data-star]");
+    if (sb) {
+      Fav.toggle(sb.dataset.star);
+      sb.outerHTML = starBtn(c.id);
+      if (state.view === "list") renderList(); else if (state.view === "pick") Picking.render();
+      return;
+    }
     const b = e.target.closest("button.chip");
     if (!b) return;
     const scroll = $("detail").querySelector(".detail-inner").scrollTop;
@@ -668,7 +697,7 @@ function exportCsv() {
 }
 
 // ---------- Mémoire des filtres (pratique, non essentielle) ----------
-const FILTER_IDS = ["q", "country", "sector", "year", "revMin", "revMax", "ebitdaMin", "levMax", "profit3", "complete", "banks"];
+const FILTER_IDS = ["q", "country", "sector", "year", "revMin", "revMax", "ebitdaMin", "levMax", "profit3", "complete", "banks", "favOnly", "strat"];
 function saveFilters() {
   try {
     const o = {};
@@ -751,7 +780,54 @@ function setView(v) {
   render();
 }
 
+// ---------- Suggestion automatique dans la recherche ----------
+// Sociétés dont le nom ou le ticker commence par la saisie (puis qui la contiennent), les plus grandes d'abord.
+function bindSuggest() {
+  const q = $("q"), box = $("qSug");
+  let items = [], cur = -1;
+  const norm = (s) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const size = (c) => { const r = (c.v.revenue || []).filter(ok); return r.length ? r[r.length - 1] * (fx(c, state.meta.years[state.meta.years.length - 1]) || 1) : 0; };
+  const close = () => { box.hidden = true; q.setAttribute("aria-expanded", "false"); cur = -1; };
+  const show = () => {
+    const t = norm(q.value.trim());
+    if (t.length < 2) { close(); return; }
+    const pre = [], inn = [];
+    for (const c of state.companies) {
+      const n = c._nn || (c._nn = norm(c.n)), tk = norm(c.t);
+      if (n.startsWith(t) || tk === t || n.split(/[\s\-.&]+/).some((w) => w.startsWith(t))) pre.push(c);
+      else if (n.includes(t) || (tk && tk.startsWith(t))) inn.push(c);
+    }
+    const by = (a, b) => size(b) - size(a);
+    items = [...pre.sort(by), ...inn.sort(by)].slice(0, 8);
+    if (!items.length) { close(); return; }
+    box.innerHTML = items.map((c, k) => `<li role="option" data-k="${k}" aria-selected="${k === cur}">${esc(c.n)}<span class="flag">${c.c}${c.t ? " · " + esc(c.t) : ""} · ${esc(shortSector(c.s))}</span>${Fav.has(c.id) ? ' <span class="star-in">★</span>' : ""}</li>`).join("");
+    box.hidden = false; q.setAttribute("aria-expanded", "true");
+  };
+  const pick = (k) => {
+    const c = items[k];
+    if (!c) return;
+    close();
+    q.value = c.n;
+    if (state.view !== "list") setView("list"); else onFilter();
+    setTimeout(() => openDetail(c), state.view === "list" ? 200 : 0);
+  };
+  q.addEventListener("input", () => { cur = -1; show(); });
+  q.addEventListener("focus", show);
+  q.addEventListener("keydown", (e) => {
+    if (box.hidden) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      cur = (cur + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      box.querySelectorAll("li").forEach((li, k) => li.setAttribute("aria-selected", String(k === cur)));
+    } else if (e.key === "Enter" && cur >= 0) { e.preventDefault(); pick(cur); }
+    else if (e.key === "Escape") close();
+  });
+  box.addEventListener("mousedown", (e) => { const li = e.target.closest("li"); if (li) { e.preventDefault(); pick(Number(li.dataset.k)); } });
+  q.addEventListener("blur", () => setTimeout(close, 100));
+}
+
 function bind() {
+  bindSuggest();
   for (const id of FILTER_IDS) $(id).addEventListener(id === "q" || id.endsWith("Min") || id.endsWith("Max") ? "input" : "change", onFilter);
   $("reset").onclick = () => {
     for (const id of FILTER_IDS) {
@@ -778,6 +854,8 @@ function bind() {
     saveFilters();
   };
   $("tbody").onclick = (e) => {
+    const st = e.target.closest("[data-star]");
+    if (st) { Fav.toggle(st.dataset.star); renderList(); return; }
     const tr = e.target.closest("tr");
     if (tr) openDetail(state.rows[Number(tr.dataset.k)].c);
   };

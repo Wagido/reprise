@@ -41,7 +41,7 @@
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-view="tdb" data-in="invest">Vue générale</button>
       <button role="tab" aria-selected="false" data-view="list" data-in="invest">Analyse</button>
-      <button role="tab" aria-selected="false" data-view="pick" data-in="invest">Stock picking</button>
+      <button role="tab" aria-selected="false" data-view="pick" data-in="invest">Mon portefeuille</button>
       <button role="tab" aria-selected="false" data-view="banc" data-in="invest">Banc d'essai</button>
       <button role="tab" aria-selected="false" data-view="ptdb" data-in="reprise">Vue générale</button>
       <button role="tab" aria-selected="false" data-view="pme" data-in="reprise">Carte et analyse</button>
@@ -51,7 +51,8 @@
 </header>
 
 <section class="filters" id="filters">
-  <input type="search" id="q" placeholder="Nom, ticker, activité…" aria-label="Recherche">
+  <div class="qbox"><input type="search" id="q" placeholder="Nom, ticker, activité…" aria-label="Recherche" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="qSug">
+    <ul id="qSug" class="qsug" role="listbox" hidden></ul></div>
   <label><span class="lt">Zone</span>
     <select id="country"><option value="">Toutes zones</option><option value="FR">France</option><option value="US">USA</option></select>
   </label>
@@ -63,6 +64,8 @@
   <label data-more>Dette nette / EBITDA max <input type="number" id="levMax" step="0.5" inputmode="decimal" placeholder="—"></label>
   <label data-more class="check"><input type="checkbox" id="profit3"> Bénéficiaire 3 ans de suite</label>
   <label data-more class="check"><input type="checkbox" id="complete"> Comptes complets seulement</label>
+  <label><span class="lt">Stratégie</span> <select id="strat"><option value="">Aucune</option></select></label>
+  <label data-more class="check"><input type="checkbox" id="favOnly"> Mes valeurs ★ seulement</label>
   <label data-more class="check" title="Pour les banques et assurances, EBE, BFR et dette nette n'ont pas de sens"><input type="checkbox" id="banks"> Inclure banques et assurances</label>
   <div class="actions">
     <button id="reset" class="ghost">Réinitialiser</button>
