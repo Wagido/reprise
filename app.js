@@ -201,6 +201,77 @@ function compute(ignoreSector = false) {
   return out;
 }
 
+// ---------- Société cherchée mais absente de la liste : dire pourquoi ----------
+function whyHidden(c, f, i) {
+  const why = [];
+  const zn = (state.meta.zones || {})[c.z || c.c] || c.c;
+  if (f.country && (c.z || c.c) !== f.country) why.push(`zone choisie ≠ ${zn}`);
+  if (f.index && !(c.ix || []).includes(f.index)) why.push(`hors ${f.index}`);
+  if (f.sector && c.s !== f.sector) why.push(`secteur choisi : ${shortSector(f.sector)} (elle est en ${shortSector(c.s)})`);
+  if (!f.banks && c.s === "finance" && f.sector !== "finance") why.push("banque ou assurance (case « Inclure banques et assurances »)");
+  if (f.favOnly && !Fav.has(c.id)) why.push("pas dans tes ★");
+  if (f.strat) why.push("filtre Stratégie");
+  if (!ok(val(c, "revenue", i, true))) {
+    const has = state.meta.years.filter((_, j) => ok(val(c, "revenue", j, true)));
+    why.push(has.length ? `pas de comptes ${state.meta.years[i]} (dernier exercice publié : ${has[has.length - 1]})` : "aucun compte exploitable");
+  }
+  if (!why.length) why.push("filtres chiffrés (CA, marge, dette…)");
+  return why;
+}
+function hiddenHits(f, i, shownIds) {
+  if (!f.q || f.q.length < 2) return "";
+  const norm = (x) => (x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const t = norm(f.q);
+  const hits = state.companies.filter((c) => !shownIds.has(c.id) && (norm(c.n).includes(t) || norm(c.t) === t)).slice(0, 4);
+  if (!hits.length) return "";
+  return `<div class="hidden-hits">${hits.map((c) => `<p><b>${esc(c.n)}</b> est dans la base mais masquée : ${esc(whyHidden(c, f, i).join(" ; "))}.
+    <button class="linkbtn" data-hopen="${esc(c.id)}">Ouvrir sa fiche</button> · <button class="linkbtn" data-hshow="${esc(c.id)}">L'afficher dans la liste</button></p>`).join("")}</div>`;
+}
+// Retire les filtres qui masquent la société et se place sur son dernier exercice publié.
+function revealCompany(c) {
+  const f = readFilters(), i = state.meta.years.indexOf(f.year);
+  if (f.country && (c.z || c.c) !== f.country) $("country").value = "";
+  if (f.index && !(c.ix || []).includes(f.index)) $("index").value = "";
+  if (f.sector && c.s !== f.sector) $("sector").value = "";
+  if (c.s === "finance" && !f.banks) $("banks").checked = true;
+  for (const id of ["favOnly", "profit3", "complete"]) $(id).checked = false;
+  for (const id of ["strat", "revMin", "revMax", "ebitdaMin", "levMax"]) $(id).value = "";
+  if (!ok(val(c, "revenue", i, true))) $("year").value = String(state.meta.years[lastYearIdx(c, i)]);
+  onFilter();
+}
+
+// ---------- Couverture : quelles sociétés sont disponibles ----------
+function coverageHtml() {
+  const ys = state.meta.years, zones = state.meta.zones || {};
+  const last = ys[ys.length - 1];
+  const cols = [last, last - 1, last - 2];
+  const by = {};
+  for (const c of state.companies) {
+    const z = c.z || c.c;
+    const has = ys.filter((_, j) => ok(val(c, "revenue", j, true)));
+    if (!has.length) continue;
+    const y = has[has.length - 1];
+    const r = (by[z] ||= { n: 0, y: {}, old: 0, fin: 0, span: 0 });
+    r.n++; r.span += has.length;
+    if (c.s === "finance") r.fin++;
+    if (cols.includes(y)) r.y[y] = (r.y[y] || 0) + 1; else r.old++;
+  }
+  const keys = Object.keys(zones).filter((k) => by[k]).sort((a, b) => by[b].n - by[a].n);
+  const tot = keys.reduce((a, k) => a + by[k].n, 0);
+  const cell = (k, y, n) => n ? `<button class="linkbtn" data-cz="${k}" data-cy="${y}">${nf0.format(n)}</button>` : "—";
+  const ix = Object.entries(state.meta.indices || {}).map(([k, v]) =>
+    `<li><button class="linkbtn" data-cix="${esc(k)}">${esc(k)}</button> : ${v.found} sur ${v.members}${v.missing && v.missing.length ? ` <span class="muted">(manquent ${esc(v.missing.slice(0, 6).join(", "))}${v.missing.length > 6 ? "…" : ""})</span>` : ""}</li>`).join("");
+  return `<div class="cov">
+    <p>${nf0.format(tot)} sociétés cotées, classées par <b>dernier exercice publié</b>. La liste n'affiche que celles qui ont des comptes pour l'exercice choisi en haut :
+      une société dont les derniers comptes datent de ${cols[2]} n'apparaît pas en ${last}. Clique un nombre pour afficher ces sociétés.</p>
+    <div class="cov-w"><table class="cov-t"><thead><tr><th>Zone</th><th>Sociétés</th>${cols.map((y) => `<th>Comptes ${y}</th>`).join("")}<th>Plus ancien</th><th>Années d'historique</th></tr></thead>
+    <tbody>${keys.map((k) => { const r = by[k]; return `<tr><td>${esc(zones[k])}</td><td>${nf0.format(r.n)}</td>${cols.map((y) => `<td>${cell(k, y, r.y[y])}</td>`).join("")}<td>${r.old ? nf0.format(r.old) : "—"}</td><td>${(r.span / r.n).toFixed(1).replace(".", ",")}</td></tr>`; }).join("")}</tbody></table></div>
+    ${ix ? `<p><b>Indices</b> (composition relevée sur Wikipédia)</p><ul class="cov-ix">${ix}</ul>` : ""}
+    <p class="muted">Sources : SEC (sociétés américaines et groupes étrangers cotés à New York), filings.xbrl.org (comptes ESEF européens : l'Allemagne n'y dépose presque rien).
+      Les comptes européens arrivent 4 à 5 mois après la clôture, parfois plus tard sur filings.xbrl.org.</p>
+  </div>`;
+}
+
 // ---------- Glossaire : ⓘ sur les termes techniques ----------
 const GLOSS = {
   "ROCE": "Rentabilité économique : résultat d'exploitation après impôt / capitaux employés (capitaux propres + dette nette). Elle crée de la valeur si elle dépasse le coût du capital.",
@@ -364,7 +435,12 @@ function renderList() {
   let all = false;
   try { all = localStorage.getItem("reprise.allcols") === "1"; } catch (e) { /* ignoré */ }
   $("count").innerHTML = `${$("count").textContent} <button class="ghost linkbtn" id="allCols">${all ? "Moins de colonnes" : "Toutes les colonnes"}</button>
+    <button class="ghost linkbtn" id="covBtn" aria-expanded="${!!state.cov}">Sociétés disponibles</button>
     <span class="qlegend"><i class="q-good"></i>quart supérieur <i class="q-bad"></i>quart inférieur</span>`;
+  const f = readFilters();
+  $("hits").innerHTML = hiddenHits(f, state.meta.years.indexOf(f.year), new Set(state.rows.map((r) => r.c.id)));
+  $("coverage").hidden = !state.cov;
+  if (state.cov && !$("coverage").innerHTML) $("coverage").innerHTML = coverageHtml();
   $("more").hidden = n <= state.shown;
   $("more").textContent = `Afficher plus (${nf0.format(n - state.shown)} restantes)`;
 }
@@ -651,7 +727,9 @@ function statementTable(c, title, rows) {
 function openDetail(c, yearIdx, tab) {
   state.detailC = c;
   const ys = state.meta.years;
-  const i = yearIdx ?? ys.indexOf(Number($("year").value));
+  let i = yearIdx ?? ys.indexOf(Number($("year").value));
+  // Sans comptes pour l'exercice demandé : dernier exercice publié (ex. comptes 2023 seulement).
+  if (!ok(val(c, "revenue", i, true))) i = lastYearIdx(c, i);
   tab = tab || state.detailTab || "analyse";
   state.detailTab = tab;
   const m = metrics(c, i);
@@ -870,7 +948,8 @@ function bindSuggest() {
     if (!c) return;
     close();
     q.value = c.n;
-    if (state.view !== "list") setView("list"); else onFilter();
+    if (state.view !== "list") setView("list");
+    revealCompany(c);
     setTimeout(() => openDetail(c), state.view === "list" ? 200 : 0);
   };
   q.addEventListener("input", () => { cur = -1; show(); });
@@ -939,6 +1018,20 @@ function bind() {
   };
   $("csv").onclick = exportCsv;
   $("view-list").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.id === "covBtn") { state.cov = !state.cov; renderList(); return; }
+    const byId = (id) => state.companies.find((c) => c.id === id);
+    if (b.dataset.hopen) { openDetail(byId(b.dataset.hopen)); return; }
+    if (b.dataset.hshow) { const c = byId(b.dataset.hshow); revealCompany(c); setTimeout(() => openDetail(c), 50); return; }
+    if (b.dataset.cz) {
+      for (const id of ["index", "sector", "q"]) $(id).value = "";
+      $("country").value = b.dataset.cz; $("year").value = b.dataset.cy; state.cov = false; onFilter(); return;
+    }
+    if (b.dataset.cix) {
+      for (const id of ["country", "sector", "q"]) $(id).value = "";
+      $("index").value = b.dataset.cix; state.cov = false; onFilter(); return;
+    }
     if (e.target.id !== "allCols") return;
     try { localStorage.setItem("reprise.allcols", localStorage.getItem("reprise.allcols") === "1" ? "0" : "1"); } catch (er) { /* ignoré */ }
     renderList();
@@ -986,6 +1079,14 @@ function bind() {
 
 // Exercice par défaut : le plus récent pour lequel au moins 60 % des sociétés
 // ont déjà publié leur chiffre d'affaires.
+// Dernier exercice publié (au plus tard `upTo` s'il en existe un avant, sinon le plus récent).
+function lastYearIdx(c, upTo = Infinity) {
+  const has = state.meta.years.map((_, j) => j).filter((j) => ok(val(c, "revenue", j, true)));
+  if (!has.length) return state.meta.years.length - 1;
+  const before = has.filter((j) => j <= upTo);
+  return before.length ? before[before.length - 1] : has[has.length - 1];
+}
+
 function defaultYear() {
   const ys = state.meta.years;
   const counts = ys.map((_, i) => state.companies.filter((c) => c.v.revenue && ok(c.v.revenue[i])).length);
@@ -1001,6 +1102,11 @@ async function init() {
     const d = await res.json();
     state.meta = d.meta;
     state.companies = d.companies;
+    // Descriptions : certaines sources recopient du HTML brut.
+    for (const c of state.companies) if (c.sd && /[<&]/.test(c.sd)) {
+      const t = document.createElement("textarea"); t.innerHTML = c.sd.replace(/<[^>]*>?/g, " ");
+      c.sd = t.value.replace(/\s+/g, " ").trim() || null;
+    }
   } catch (e) {
     $("dataInfo").textContent = "Données introuvables : lancer la collecte (voir README).";
     return;

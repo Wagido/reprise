@@ -70,6 +70,15 @@ ZONE_NAMES = {"FR": "France", "EU": "Europe (hors France et R.-U.)", "GB": "Roya
               "ASIA": "Asie-Pacifique", "AM": "Amériques (hors USA)", "OTHER": "Autres"}
 
 
+def clean_desc(t):
+    """Description sans balises HTML (certains dépôts ESEF les recopient telles quelles)."""
+    if not t:
+        return t
+    import html as _h
+    t = _h.unescape(re.sub(r"<[^>]*>?", " ", t))
+    return re.sub(r"\s+", " ", t).strip() or None
+
+
 def sic_sector(sic):
     """Code SIC (USA) vers secteur large."""
     try:
@@ -263,7 +272,7 @@ def main():
                     "e": dh.get("est", []), "sp": dh["splits"]} if dh else None
         out.append({
             "id": c["id"], "n": c["name"], "c": c["country"], "z": ZONES.get(c["country"], "EU"), "t": c.get("ticker"), "x": c.get("exchange"),
-            "s": sector, "sf": sector_from, "sd": c.get("sector_desc"), "sic": c.get("sic"),
+            "s": sector, "sf": sector_from, "sd": clean_desc(c.get("sector_desc")), "sic": c.get("sic"),
             "cur": c["currency"], "src": c.get("source"), "est": sorted(est),
             "fy": {y: c.get("fy_end", {}).get(str(y)) for y in years[-1:]},
             # Cours de clôture et nombre d'actions : capitalisation actuelle.

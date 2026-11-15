@@ -658,3 +658,18 @@ details.vstep .st-v { font-size: 13.5px; color: var(--muted); line-height: 1.45;
     border: 0; border-radius: 10px; background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
   .cubes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Société cherchée mais masquée ; couverture des données */
+.hidden-hits{margin:4px 0 10px;padding:8px 12px;border-radius:8px;background:var(--warn-bg,#fff7e6);border:1px solid var(--warn-bd,#f0d9a8);font-size:.9rem}
+.hidden-hits p{margin:2px 0}
+.cov{margin:4px 0 14px;padding:12px 14px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:.9rem}
+.cov p{margin:4px 0 8px}
+.cov-t{border-collapse:collapse;width:100%;margin-bottom:8px}
+.cov-t th,.cov-t td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--line,#eee);white-space:nowrap}
+.cov-t th:first-child,.cov-t td:first-child{text-align:left}
+.cov-t th{font-weight:600;font-size:.8rem;color:var(--muted,#666)}
+.cov-ix{margin:0 0 6px;padding-left:18px}
+.cov .muted{color:var(--muted,#666);font-size:.82rem}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .hidden-hits{background:#3a2f17;border-color:#6b5525}}
+:root[data-theme="dark"] .hidden-hits{background:#3a2f17;border-color:#6b5525}
+.cov-w{overflow-x:auto}
