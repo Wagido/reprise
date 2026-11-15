@@ -201,6 +201,58 @@ function compute(ignoreSector = false) {
   return out;
 }
 
+// ---------- Glossaire : ⓘ sur les termes techniques ----------
+const GLOSS = {
+  "ROCE": "Rentabilité économique : résultat d'exploitation après impôt / capitaux employés (capitaux propres + dette nette). Elle crée de la valeur si elle dépasse le coût du capital.",
+  "coût du capital": "CMPC : rentabilité minimale exigée par actionnaires et prêteurs = taux sans risque + bêta × prime de risque. Repère pour juger le ROCE.",
+  "CMPC": "Coût moyen pondéré du capital : rentabilité minimale exigée par actionnaires et prêteurs. Repère pour juger le ROCE.",
+  "ROE": "Rentabilité des capitaux propres : résultat net / capitaux propres. Comparée au coût des fonds propres ; la dette l'augmente, mais aussi le risque.",
+  "coût des fonds propres": "Rentabilité exigée par les actionnaires : taux sans risque + bêta des actions × prime de risque. Plus la dette est lourde, plus elle monte.",
+  "EBE": "Excédent brut d'exploitation (EBITDA) : ce que l'activité dégage avant amortissements, intérêts et impôts.",
+  "BFR": "Besoin en fonds de roulement : stocks + créances clients − dettes fournisseurs, en jours de CA. Négatif : clients et fournisseurs financent l'entreprise.",
+  "dette nette / EBE": "Nombre d'années d'EBE pour rembourser la dette nette. Repère : moins de 3×.",
+  "dette nette": "Dettes financières + dettes de location − trésorerie et placements à court terme.",
+  "flux disponible": "Flux de trésorerie disponible : flux d'exploitation − investissements. Ce qui reste pour rembourser, distribuer ou investir ailleurs.",
+  "VE / capitaux employés": "Valeur d'entreprise (capitalisation + dette nette) / capitaux employés. Sans croissance, elle devrait valoir ROCE / coût du capital.",
+  "invest. / amort.": "Investissements / dotations aux amortissements : au-dessus de 1,1× l'outil se développe, autour de 1× il est maintenu, en dessous il vieillit.",
+  "PER": "Capitalisation / résultat net : combien d'années de bénéfice le marché paie.",
+  "Piotroski": "Score de 0 à 9 sur la qualité des comptes (rentabilité, endettement, efficacité). 7 et plus : solide.",
+  "Altman": "Score de risque de défaillance à deux ans : au-dessus de 2,6 risque faible, sous 1,1 risque élevé.",
+};
+// Entoure la première occurrence de chaque terme connu (texte sans balises uniquement).
+function gloss(text) {
+  if (!text || /[<>]/.test(text)) return text;
+  // Les termes trouvés sont mis de côté (jetons) : un terme déjà encadré n'est jamais repris par un plus court.
+  const held = [];
+  let out = text;
+  for (const k of Object.keys(GLOSS).sort((a, b) => b.length - a.length)) {
+    const i = out.indexOf(k);
+    if (i < 0) continue;
+    held.push(`<span class="gl" tabindex="0" data-gl="${esc(k)}">${k}</span>`);
+    out = out.slice(0, i) + `\u0000${held.length - 1}\u0000` + out.slice(i + k.length);
+  }
+  return out.replace(/\u0000(\d+)\u0000/g, (_, n) => held[Number(n)]);
+}
+function bindGloss() {
+  const pop = document.createElement("div");
+  pop.id = "glPop"; pop.className = "gl-pop"; pop.hidden = true;
+  document.body.appendChild(pop);
+  const show = (el) => {
+    pop.innerHTML = `<b>${esc(el.dataset.gl)}</b> ${esc(GLOSS[el.dataset.gl] || "")}`;
+    pop.hidden = false;
+    const r = el.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
+    pop.style.width = w + "px";
+    pop.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left)) + "px";
+    pop.style.top = (r.bottom + 6 + pop.offsetHeight > window.innerHeight ? r.top - pop.offsetHeight - 6 : r.bottom + 6) + "px";
+  };
+  document.addEventListener("click", (e) => {
+    const g = e.target.closest(".gl");
+    if (g) { e.preventDefault(); e.stopPropagation(); if (!pop.hidden && pop.dataset.k === g.dataset.gl) { pop.hidden = true; return; } pop.dataset.k = g.dataset.gl; show(g); return; }
+    if (!e.target.closest("#glPop")) pop.hidden = true;
+  }, true);
+  document.addEventListener("scroll", () => (pop.hidden = true), true);
+}
+
 // ---------- Valeurs préférées (étoiles) ----------
 // { id: { entry: prix d'achat, qty: nombre d'actions, note } }, dans ce navigateur.
 const Fav = (() => {
@@ -599,7 +651,7 @@ function openDetail(c, yearIdx, tab) {
   const sector = `${state.meta.sectors[c.s]}${c.sf === "estimé" ? " (estimé)" : c.sf === "SIC" && c.sd ? " — " + c.sd : ""}`;
   const row = state.rows.find((r) => r.c === c);
   const avail = ys.map((y, j) => [y, j]).filter(([, j]) => ok(val(c, "revenue", j, true)));
-  const chips = avail.map(([y, j]) => `<button class="chip" data-y="${j}" aria-pressed="${j === i}">${y}</button>`).join("");
+  const chips = avail.length > 1 ? `<label class="fy">Exercice <select id="ficheYear">${avail.map(([y, j]) => `<option value="${j}"${j === i ? " selected" : ""}>${y}</option>`).join("")}</select></label>` : "";
   const tabs = [["analyse", "Analyse financière"], ["comptes", "Comptes détaillés"]]
     .map(([k, l]) => `<button class="chip tab" data-tab="${k}" aria-pressed="${k === tab}">${l}</button>`).join("");
 
@@ -635,13 +687,13 @@ function openDetail(c, yearIdx, tab) {
   $("detailBody").innerHTML = `
     <h2>${esc(c.n)} ${starBtn(c.id)}</h2>
     <p class="meta">${esc(where)} · ${esc(sector)} · comptes en ${esc(c.cur)}
-      ${c.src ? ` · <a href="${esc(c.src)}" target="_blank" rel="noopener">source officielle</a>` : ""}</p>
-    ${c.sf !== "SIC" && c.sd ? `<p class="desc">${esc(c.sd)}</p>` : ""}
-    ${c.est && c.est.length ? `<p class="desc est">≈ Estimé à partir d'étiquettes propres à la société (à vérifier dans la source) :
-      ${c.est.map((f) => esc((state.meta.fields[f] || {}).label || f).toLowerCase()).join(", ")}.</p>` : ""}
-    <div class="chips">${tabs}<span class="sep"></span>${tab === "analyse" ? chips : ""}</div>
+      ${c.src ? ` · <a href="${esc(c.src)}" target="_blank" rel="noopener">source officielle</a>` : ""}
+      ${c.est && c.est.length ? ` · <span class="est-i" tabindex="0" title="Estimé à partir d'étiquettes propres à la société (à vérifier dans la source) : ${esc(c.est.map((f) => (state.meta.fields[f] || {}).label || f).join(", ").toLowerCase())}.">≈ ${c.est.length} poste${c.est.length > 1 ? "s" : ""} estimé${c.est.length > 1 ? "s" : ""}</span>` : ""}</p>
+    ${c.sf !== "SIC" && c.sd ? `<details class="desc-d"><summary>${esc(c.sd.length > 110 ? c.sd.slice(0, 110).replace(/\s+\S*$/, "") + "…" : c.sd)}</summary>${c.sd.length > 110 ? `<p class="desc">${esc(c.sd)}</p>` : ""}</details>` : ""}
+    <div class="chips fiche-bar">${tabs}<span class="sep"></span>${chips}</div>
     ${tab === "analyse" ? Analyse.render(c, i) : comptes}`;
   $("detailBody").onchange = (e) => {
+    if (e.target.id === "ficheYear") { openDetail(c, Number(e.target.value), tab); return; }
     const p = e.target.dataset && e.target.dataset.param;
     if (!p) return;
     Analyse.setParam(p, e.target.value);
@@ -769,6 +821,7 @@ function setView(v) {
   else $("detail").hidden = true;
   $("filters").hidden = space !== "invest";
   document.body.dataset.space = space;
+  if (typeof syncWelcome === "function" && $("welcome")) syncWelcome();
   $("pmeHead").hidden = !(v === "pme" || v === "ptdb");
   if (v === "pme" || v === "ptdb") PME.show();
   if (v === "lbo") LBO.mount();
@@ -826,8 +879,39 @@ function bindSuggest() {
   q.addEventListener("blur", () => setTimeout(close, 100));
 }
 
+// Filtres secondaires derrière « Plus de filtres (n) ».
+function syncMoreFilters() {
+  const n = [...document.querySelectorAll("#filters [data-more] input, #filters [data-more] select")]
+    .filter((el) => (el.type === "checkbox" ? el.checked !== el.defaultChecked : el.value !== "")).length;
+  const open = $("filters").classList.contains("open");
+  $("moreFilters").textContent = open ? "Moins de filtres" : `Plus de filtres${n ? ` (${n})` : ""}`;
+  $("moreFilters").setAttribute("aria-expanded", String(open));
+  $("moreFilters").classList.toggle("on", n > 0);
+}
+// Bandeau d'accueil : trois étapes, jusqu'à ce qu'on le ferme.
+function syncWelcome() {
+  let seen = false;
+  try { seen = localStorage.getItem("reprise.welcome") === "1"; } catch (e) { /* ignoré */ }
+  $("welcome").hidden = seen || document.body.dataset.space !== "invest";
+}
+
 function bind() {
   bindSuggest();
+  bindGloss();
+  $("moreFilters").onclick = () => { $("filters").classList.toggle("open"); syncMoreFilters(); };
+  $("filters").addEventListener("change", syncMoreFilters);
+  $("filters").addEventListener("input", syncMoreFilters);
+  syncMoreFilters();
+  $("closeWelcome").onclick = () => { try { localStorage.setItem("reprise.welcome", "1"); } catch (e) { /* ignoré */ } syncWelcome(); };
+  $("welcome").onclick = (e) => {
+    const b = e.target.closest("[data-w]");
+    if (!b) return;
+    if (b.dataset.w === "pick") { setView("pick"); return; }
+    if (b.dataset.w === "q" && state.view !== "list") setView("list");
+    $(b.dataset.w).focus();
+    if (b.dataset.w === "index" && $("index").showPicker) { try { $("index").showPicker(); } catch (er) { /* ignoré */ } }
+  };
+  $("detailBack").onclick = closeDetail;
   $("ifrs16").checked = Analyse.params.ifrs16 !== false;
   $("ifrs16").addEventListener("change", () => {
     Analyse.setFlag("ifrs16", $("ifrs16").checked);

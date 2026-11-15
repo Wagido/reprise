@@ -65,17 +65,26 @@
   <label data-more>Dette nette / EBITDA max <input type="number" id="levMax" step="0.5" inputmode="decimal" placeholder="—"></label>
   <label data-more class="check"><input type="checkbox" id="profit3"> Bénéficiaire 3 ans de suite</label>
   <label data-more class="check"><input type="checkbox" id="complete"> Comptes complets seulement</label>
-  <label><span class="lt">Stratégie</span> <select id="strat"><option value="">Aucune</option></select></label>
+  <label data-more><span class="lt">Stratégie</span> <select id="strat"><option value="">Aucune</option></select></label>
   <label data-more class="check"><input type="checkbox" id="favOnly"> Mes valeurs ★ seulement</label>
   <label data-more class="check" title="Hors États-Unis, les dotations aux amortissements incluent celui des loyers (IFRS 16), qui n'est pas de l'investissement : on le retire (estimé à 20 % des dettes de location) pour le ratio investissements / amortissements. Décocher pour revenir aux dotations publiées."><input type="checkbox" id="ifrs16" checked> Amortissements hors loyers (IFRS 16)</label>
   <label data-more class="check" title="Pour les banques et assurances, EBE, BFR et dette nette n'ont pas de sens"><input type="checkbox" id="banks"> Inclure banques et assurances</label>
   <div class="actions">
+    <button id="moreFilters" class="ghost" aria-expanded="false">Plus de filtres</button>
     <button id="reset" class="ghost">Réinitialiser</button>
     <button id="csv">Exporter CSV</button>
   </div>
 </section>
 
 <main>
+<div id="welcome" class="welcome" hidden>
+  <ol>
+    <li><b>Choisis un indice</b> (CAC 40, S&amp;P 500…) <button class="linkbtn" data-w="index">ici</button> ou <b>cherche une société</b> <button class="linkbtn" data-w="q">par son nom</button>.</li>
+    <li><b>Lis les 7 vignettes</b> en tête de sa fiche : un feu et un chiffre par question, une courbe sur plusieurs années.</li>
+    <li><b>Ajoute ☆</b> les sociétés qui t'intéressent : elles rejoignent l'onglet <button class="linkbtn" data-w="pick">Mon portefeuille</button>.</li>
+  </ol>
+  <button class="close-w" id="closeWelcome" aria-label="Fermer">×</button>
+</div>
   <section id="view-list" class="view">
     <p class="count" id="count"></p>
     <div class="tablewrap">
@@ -175,6 +184,7 @@
   <div class="detail-inner">
     <button class="close" id="closeDetail" aria-label="Fermer">×</button>
     <div id="detailBody"></div>
+    <button class="back-m" id="detailBack">← Retour</button>
   </div>
 </aside>
 

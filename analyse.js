@@ -554,7 +554,7 @@ const Analyse = (() => {
   }
 
   // ---------- Briques d'affichage ----------
-  const kpi = (label, value, extra = "") => `<div class="kpi"><b>${value}</b><span>${label}</span>${extra}</div>`;
+  const kpi = (label, value, extra = "") => `<div class="kpi"><b>${value}</b><span>${gloss(label)}</span>${extra}</div>`;
   const D = (v) => (ok(v) ? nf0.format(v) + " j" : "—");
   const light = (state) => `<i class="light ${state}" aria-label="${state === "green" ? "bon" : state === "orange" ? "à surveiller" : state === "red" ? "alerte" : "inconnu"}"></i>`;
   // Chaque étape est repliable : on lit d'abord le résumé, on ouvre le détail au besoin.
@@ -1236,19 +1236,22 @@ const Analyse = (() => {
     const cur = esc(c.cur);
     const cash = ok(f.netDebt) && f.netDebt <= 0;
     const rows = Object.fromEntries(V.rows.map(([n, , s]) => [n, s]));
+    const warnRoce = ok(f.roce) && Math.abs(f.roce) > 1 ? ' <span class="warn" title="Valeur hors norme : capitaux employés très faibles ou donnée à vérifier">⚠</span>' : "";
     const tiles = [
-      ["A", "Crée-t-elle de la valeur ?", V.val[0], `${P(f.roce)} <small>vs ${P(f.k)}</small>`, `${ok(f.roce) && Math.abs(f.roce) > 1 ? `<span class="warn">⚠ valeur hors norme : capitaux employés très faibles ou donnée à vérifier</span> · ` : ""}ROCE après IS face au coût du capital${ok(f.eva) ? ` · ${f.eva >= 0 ? "+" : ""}${M(f.eva)} M ${cur}` : ""}`, hist((x) => x.roce), f.k, P],
-      ["P", "Peut-elle rembourser ?", V.solv[0], cash ? "Trésorerie nette" : X(f.ndEbitda), cash ? `${M(-f.netDebt)} M ${cur} de trésorerie nette` : `dette nette / EBE (repère ≤ 3×) · couverture ${X(f.coverage)}`, hist((x) => x.ndEbitda), 3, X],
-      [1, "Marges", rows[1], P(f.ebitdaMargin), `marge d'EBE · secteur ${P(med("ebitdaMargin"))} · croissance ${P(f.growth)}/an`, hist((x) => x.ebitdaMargin), med("ebitdaMargin"), P],
-      [2, "Investissements", rows[2], D(f.bfrDays), `BFR en jours de CA${ok(f.capexDa) ? ` · invest. / amort. ${X(f.capexDa)}` : ""}`, hist((x) => x.bfrDays), med("bfrDays"), D],
-      ok(f.fcf) ? [3, "Financement", rows[3], `${M(f.fcf)} <small>M ${cur}</small>`, `flux de trésorerie disponible${ok(f.rev) && f.rev > 0 ? ` · ${P(f.fcf / f.rev)} du CA` : ""}`, hist((x) => x.fcf), 0, M]
-        : ok(f.cfo) ? [3, "Financement", rows[3], `${M(f.cfo)} <small>M ${cur}</small>`, "flux d'exploitation (investissements non publiés)", hist((x) => x.cfo), 0, M]
-          : [3, "Financement", rows[3], cash ? "Trésorerie nette" : X(f.ndEbitda), "flux de trésorerie non publiés · dette nette / EBE", hist((x) => x.ndEbitda), 3, X],
-      [4, "Rentabilité", rows[4], `${P(f.roe)} <small>vs ${P(f.kE)}</small>`, `ROE face au coût des fonds propres · ROCE ${P(f.roce)}`, hist((x) => x.roe), f.kE, P],
-      ["€", "Le marché la paie-t-il ?", mv[0], ok(f.vae) ? `${X(f.vae)} <small>vs ${X(f.vaeTh)}</small>` : "—", ok(f.vae) ? "VE / capitaux employés, observé face au justifié sans croissance" : "pas de cours", null, null, X],
+      ["A", "Valeur", V.val[0], `${P(f.roce)}${warnRoce} <small>vs ${P(f.k)}</small>`, `${gloss("ROCE")} vs ${gloss("coût du capital")}`, hist((x) => x.roce), f.k, P,
+        V.val[1].replace(/<[^>]+>/g, "")],
+      ["P", "Dettes", V.solv[0], cash ? `+${M(-f.netDebt)} <small>M ${cur}</small>` : X(f.ndEbitda), cash ? "trésorerie nette" : gloss("dette nette / EBE"), hist((x) => x.ndEbitda), 3, X,
+        V.solv[1].replace(/<[^>]+>/g, "")],
+      [1, "Marges", rows[1], P(f.ebitdaMargin), `marge d'${gloss("EBE")} · secteur ${P(med("ebitdaMargin"))}`, hist((x) => x.ebitdaMargin), med("ebitdaMargin"), P, V.rows[0][3]],
+      [2, "Investissements", rows[2], D(f.bfrDays), `${gloss("BFR")}${ok(f.capexDa) ? ` · invest. ${X(f.capexDa)} amort.` : ""}`, hist((x) => x.bfrDays), med("bfrDays"), D, V.rows[1][3]],
+      ok(f.fcf) ? [3, "Financement", rows[3], `${M(f.fcf)} <small>M ${cur}</small>`, gloss("flux disponible"), hist((x) => x.fcf), 0, M, V.rows[2][3]]
+        : ok(f.cfo) ? [3, "Financement", rows[3], `${M(f.cfo)} <small>M ${cur}</small>`, "flux d'exploitation", hist((x) => x.cfo), 0, M, V.rows[2][3] + " Investissements non publiés."]
+          : [3, "Financement", rows[3], cash ? "Trés. nette" : X(f.ndEbitda), gloss("dette nette / EBE"), hist((x) => x.ndEbitda), 3, X, V.rows[2][3]],
+      [4, "Rentabilité", rows[4], `${P(f.roe)} <small>vs ${P(f.kE)}</small>`, `${gloss("ROE")} vs ${gloss("coût des fonds propres")}`, hist((x) => x.roe), f.kE, P, V.rows[3][3]],
+      ["€", "Marché", mv[0], ok(f.vae) ? `${X(f.vae)} <small>vs ${X(f.vaeTh)}</small>` : "—", ok(f.vae) ? gloss("VE / capitaux employés") : "pas de cours", null, null, X, mv[1].replace(/<[^>]+>/g, "")],
     ];
-    return `<div class="cubes">${tiles.map(([n, t, s, big, sub, h, ref, fmt]) => `
-      <button class="cube ${s || "grey"}" data-open="${n}" title="Ouvrir le détail">
+    return `<div class="cubes">${tiles.map(([n, t, s, big, sub, h, ref, fmt, tip]) => `
+      <button class="cube ${s || "grey"}" data-open="${n}" title="${esc(tip || "")} — cliquer pour le détail">
         <span class="cube-h"><span class="num">${n}</span>${light(s || "grey")}<span>${t}</span></span>
         <b class="cube-v">${big}</b><span class="cube-s">${sub}</span>
         ${h ? spark(h, ref, s, fmt) + (h.filter(ok).length >= 2 ? `<span class="cube-y">${ys[from + h.findIndex(ok)]}–${ys[i]}</span>` : "") : n === "€" && ok(f.vae) && ok(f.vaeTh) ? vaeBar(f.vae, f.vaeTh, s) : ""}
