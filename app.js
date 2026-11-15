@@ -586,6 +586,7 @@ function statementTable(c, title, rows) {
 }
 
 function openDetail(c, yearIdx, tab) {
+  state.detailC = c;
   const ys = state.meta.years;
   const i = yearIdx ?? ys.indexOf(Number($("year").value));
   tab = tab || state.detailTab || "analyse";
@@ -828,6 +829,12 @@ function bindSuggest() {
 
 function bind() {
   bindSuggest();
+  $("ifrs16").checked = Analyse.params.ifrs16 !== false;
+  $("ifrs16").addEventListener("change", () => {
+    Analyse.setFlag("ifrs16", $("ifrs16").checked);
+    render();
+    if (state.view === "list" && state.detailC) openDetail(state.detailC);
+  });
   for (const id of FILTER_IDS) $(id).addEventListener(id === "q" || id.endsWith("Min") || id.endsWith("Max") ? "input" : "change", onFilter);
   $("reset").onclick = () => {
     for (const id of FILTER_IDS) {

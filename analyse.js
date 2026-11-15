@@ -125,7 +125,14 @@ const Analyse = (() => {
       ndEbitda: ok(netDebt) && ok(ebitda) && ebitda > 0 ? netDebt / ebitda : null,
       coverage: ok(ebit) && ok(interest) && interest > 0 ? ebit / interest : null,
       fcf: ok(g("cfo")) && ok(g("capex")) ? g("cfo") - g("capex") : null,
-      capexDa: ok(g("capex")) && ok(da) && da > 0 ? g("capex") / da : null,
+      // Investissements / amortissements. Retraitement IFRS 16 (case à cocher, actif par défaut) : hors des
+      // États-Unis, les dotations incluent l'amortissement des loyers (droits d'utilisation), alors que les
+      // nouveaux contrats de location ne sont pas des investissements. Rarement publié sous une étiquette
+      // standard : estimé à 20 % des dettes de location (durée résiduelle moyenne des baux de l'ordre de 5 ans),
+      // plafonné à la moitié des dotations. Les normes américaines laissent les loyers simples hors des dotations.
+      daRou: params.ifrs16 !== false && c.c !== "US" && ok(da) && leases > 0 ? Math.min(0.2 * leases, 0.5 * da) : 0,
+      get daAdj() { return ok(da) ? da - this.daRou : null; },
+      get capexDa() { return ok(g("capex")) && ok(this.daAdj) && this.daAdj > 0 ? g("capex") / this.daAdj : null; },
       capexRev: ok(g("capex")) && ok(rev) && rev > 0 ? g("capex") / rev : null,
       // Capitalisation : cours actuel × nombre d'actions si disponible, sinon « public float » SEC de l'année.
       ...(() => {
@@ -418,7 +425,7 @@ const Analyse = (() => {
       rows.push({ label: "Variation de trésorerie", value: sum + f.cff, kind: "sub", group: "Résultat" });
     }
     const conv = ok(f.ebitda) && f.ebitda > 0 && ok(f.capex) ? `FCF / EBITDA ${P((f.cfo - f.capex) / f.ebitda)}` : "";
-    const capexDa = ok(f.capex) && ok(f.da) && f.da > 0 ? ` · capex / amortissements ${X(f.capex / f.da)} (au-dessus de 1×, l'outil se développe)` : "";
+    const capexDa = ok(f.capexDa) ? ` · capex / amortissements ${X(f.capexDa)}${f.daRou > 0 ? " hors amortissement des loyers (IFRS 16, estimé)" : ""} (au-dessus de 1×, l'outil se développe)` : "";
     return card("Tableau de flux de trésorerie", `M ${cur}`, waterfall(rows), conv + capexDa);
   }
 
@@ -502,7 +509,7 @@ const Analyse = (() => {
 
   // ---------- Paramètres réglables (mémorisés dans le navigateur) ----------
   // rf = taux sans risque (%), prm = prime de risque (%) : vides = valeurs de référence mises à jour par la collecte.
-  const params = { rf: null, prm: null, mult: null };
+  const params = { rf: null, prm: null, mult: null, ifrs16: true };
   try { Object.assign(params, JSON.parse(localStorage.getItem("reprise.params") || "{}")); } catch (e) { /* ignoré */ }
   delete params.wacc;
   if (params.rf === 3 && params.prm === 6) { params.rf = null; params.prm = null; }   // anciennes valeurs par défaut
@@ -1258,6 +1265,12 @@ const Analyse = (() => {
     <p>On mène l'analyse de trois façons : <b>en tendance</b> (sur plusieurs années), <b>en comparaison</b> (face aux concurrents
     du secteur) et <b>par rapport à des normes</b> (les repères ci-dessus).</p>`;
 
+  // Retraitement IFRS 16 des amortissements (case à cocher des filtres).
+  function setFlag(name, on) {
+    params[name] = !!on;
+    saveParams();
+    for (const k of Object.keys(sectorCache)) delete sectorCache[k];
+  }
   function setParam(name, value) {
     const s = String(value ?? "").trim();
     const v = Number(s.replace(",", "."));
@@ -1307,5 +1320,5 @@ const Analyse = (() => {
     const f = figures(c, i), st = sectorStats(c.s, i);
     return { f, mv: marketVerdict(c, f, i, st), fv: fairValue(c, f, i, st) };
   }
-  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, methodHtml: METHOD_HTML, params, setParam, marketK };
+  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, methodHtml: METHOD_HTML, params, setParam, setFlag, marketK };
 })();

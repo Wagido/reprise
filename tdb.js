@@ -100,7 +100,7 @@ const TDB = (() => {
   // dans l'info-bulle. Les grandeurs absolues (CA, résultat, capitalisation) restent à la médiane.
   const WEIGHT = {
     growth: (f) => f.rev, ebitdaMargin: (f) => f.rev, bfrDays: (f) => f.rev, capexRev: (f) => f.rev, margin: (f) => f.rev,
-    capexDa: (f) => f.da, ndEbitda: (f) => f.ebitda, evEbitda: (f) => f.ebitda, coverage: (f) => f.interest,
+    capexDa: (f) => f.daAdj, ndEbitda: (f) => f.ebitda, evEbitda: (f) => f.ebitda, coverage: (f) => f.interest,
     roce: (f) => f.ceAvg, rotation: (f) => f.ceAvg, spread: (f) => f.ceAvg, vae: (f) => f.ceAvg,
     roe: (f) => f.eq, roeSpread: (f) => f.eq, pbr: (f) => f.eq,
   };
