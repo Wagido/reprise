@@ -1258,6 +1258,12 @@ const Analyse = (() => {
       </button>`).join("")}</div>
       <p class="note cubes-note">Courbes : les derniers exercices ; pointillé : le repère (coût du capital, médiane du secteur, dette nette / EBE de 3×, flux nul). Cliquer une vignette pour le détail.</p>`;
   }
+  // Deux barres : repère (gris) et valeur (couleur du feu). Partagé avec la fiche PME.
+  function miniBars(v, ref, s, refLabel, valLabel) {
+    const hi = Math.max(Math.abs(v || 0), Math.abs(ref || 0)) * 1.1 || 1, w = (x) => Math.max(2, Math.abs(x || 0) / hi * 142);
+    return `<svg class="spk" viewBox="0 0 150 40"><rect x="4" y="6" width="${w(ref).toFixed(1)}" height="11" rx="2" fill="#b9c3cf"><title>${esc(refLabel)}</title></rect>
+      <rect x="4" y="22" width="${w(v).toFixed(1)}" height="11" rx="2" fill="${COLOR[s] || COLOR.grey}"><title>${esc(valLabel)}</title></rect></svg>`;
+  }
   function vaeBar(obs, th, s) {
     const hi = Math.max(obs, th) * 1.1, w = (v) => Math.max(2, v / hi * 142);
     return `<svg class="spk" viewBox="0 0 150 40"><rect x="4" y="6" width="${w(th).toFixed(1)}" height="11" rx="2" fill="#b9c3cf"><title>justifié ${X(th)}</title></rect>
@@ -1387,5 +1393,5 @@ const Analyse = (() => {
     const f = figures(c, i), st = sectorStats(c.s, i);
     return { f, mv: marketVerdict(c, f, i, st), fv: fairValue(c, f, i, st) };
   }
-  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, methodHtml: METHOD_HTML, params, setParam, setFlag, marketK };
+  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, spark, miniBars, methodHtml: METHOD_HTML, params, setParam, setFlag, marketK };
 })();

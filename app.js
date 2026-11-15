@@ -218,6 +218,13 @@ const GLOSS = {
   "PER": "Capitalisation / résultat net : combien d'années de bénéfice le marché paie.",
   "Piotroski": "Score de 0 à 9 sur la qualité des comptes (rentabilité, endettement, efficacité). 7 et plus : solide.",
   "Altman": "Score de risque de défaillance à deux ans : au-dessus de 2,6 risque faible, sous 1,1 risque élevé.",
+  "CAF": "Capacité d'autofinancement : résultat net + amortissements et provisions. La trésorerie que l'activité dégage chaque année.",
+  "capacité de remboursement": "Dettes financières / CAF : nombre d'années de CAF pour rembourser les dettes. Repère : 3 à 4 ans au plus.",
+  "autonomie financière": "Capitaux propres / total du bilan : la part de l'entreprise financée par ses actionnaires. Repère : 20 % au moins.",
+  "marge nette": "Résultat net / chiffre d'affaires.",
+  "EBE retraité": "EBE + crédit d'impôt (CIR / CII) + intéressement et participation : ce que l'activité dégage vraiment chaque année. Base du prix de reprise.",
+  "état de l'outil": "Immobilisations nettes / brutes : au-dessus de 60 % l'outil est récent, sous 40 % il vieillit et des investissements sont à prévoir.",
+  "multiple": "Valeur d'entreprise / EBE retraité. Repère de place : Argos Index (transactions non cotées) ajusté du secteur et de la taille.",
 };
 // Entoure la première occurrence de chaque terme connu (texte sans balises uniquement).
 function gloss(text) {
@@ -240,6 +247,7 @@ function bindGloss() {
   const show = (el) => {
     pop.innerHTML = `<b>${esc(el.dataset.gl)}</b> ${esc(GLOSS[el.dataset.gl] || "")}`;
     pop.hidden = false;
+    pop.dataset.t = String(Date.now());
     const r = el.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
     pop.style.width = w + "px";
     pop.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left)) + "px";
@@ -250,7 +258,8 @@ function bindGloss() {
     if (g) { e.preventDefault(); e.stopPropagation(); if (!pop.hidden && pop.dataset.k === g.dataset.gl) { pop.hidden = true; return; } pop.dataset.k = g.dataset.gl; show(g); return; }
     if (!e.target.closest("#glPop")) pop.hidden = true;
   }, true);
-  document.addEventListener("scroll", () => (pop.hidden = true), true);
+  // Un défilement referme la définition, sauf juste après son ouverture (défilement doux en cours).
+  document.addEventListener("scroll", () => { if (Date.now() - Number(pop.dataset.t || 0) > 600) pop.hidden = true; }, true);
 }
 
 // ---------- Valeurs préférées (étoiles) ----------

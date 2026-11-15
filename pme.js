@@ -294,7 +294,33 @@ const PME = (() => {
   }
 
   function light(s) { return `<i class="light ${s}"></i>`; }
-  function kpi(label, value, extra = "") { return `<div class="kpi"><b>${value}</b><span>${label}</span>${extra}</div>`; }
+  function kpi(label, value, extra = "") { return `<div class="kpi"><b>${value}</b><span>${gloss(label)}</span>${extra}</div>`; }
+
+  // Synthèse visuelle : une vignette par réponse et par étape (feu, chiffre, courbe ou barres repère / société).
+  function cubes(o, ss, V) {
+    const ys = data.meta.years, [hCa, hEbe, hRn] = o.hist || [[], [], []];
+    const ratio = (a) => ys.map((_, j) => (ok(a[j]) && ok(hCa[j]) && hCa[j] > 0 ? a[j] / hCa[j] * 100 : null));
+    const span = (h) => { const k = h.map((v, j) => (ok(v) ? j : -1)).filter((j) => j >= 0); return k.length >= 2 ? `<span class="cube-y">${ys[k[0]]}–${ys[k[k.length - 1]]}</span>` : ""; };
+    const curve = (h, ref, s, fmt) => (h.filter(ok).length >= 2 ? Analyse.spark(h, ref, s, fmt) + span(h) : "");
+    const vsSec = (v, k, s, fmt) => (ok(v) && ok(ss.med(k)) ? Analyse.miniBars(v, ss.med(k), s, `PME comparables ${fmt(ss.med(k))}`, `${o.n} ${fmt(v)}`) + `<span class="cube-y">gris : PME comparables · couleur : ${esc(o.n.length > 18 ? "la société" : o.n)}</span>` : "");
+    const cash = ok(o.remb) && o.remb < 0;
+    const tiles = [
+      ["A", "Valeur", V.A[0], P1(o.nm), `${gloss("marge nette")} · secteur ${P1(ss.med("nm"))}`, curve(ratio(hRn), ss.med("nm"), V.A[0], P1), V.A[1]],
+      ["P", "Dettes", V.P[0], cash ? "Trés. nette" : Y(o.remb), cash ? "trésorerie supérieure aux dettes" : gloss("capacité de remboursement"),
+        cash ? "" : ok(o.remb) ? Analyse.miniBars(o.remb, 3, V.P[0], "repère 3 ans", `${Y(o.remb)}`) + `<span class="cube-y">gris : repère 3 ans · couleur : la société</span>` : "", V.P[1]],
+      [1, "Marges", V[1][0], P1(o.me), `marge d'${gloss("EBE")} · secteur ${P1(ss.med("me"))}`, curve(ratio(hEbe), ss.med("me"), V[1][0], P1), V[1][1]],
+      [2, "Investissements", V[2][0], J(o.bfrj), `${gloss("BFR")} · outil ${P1(o.vet)}`, vsSec(o.bfrj, "bfrj", V[2][0], J), V[2][1]],
+      [3, "Financement", V[3][0], P1(o.auto), gloss("autonomie financière"), vsSec(o.auto, "auto", V[3][0], P1), V[3][1]],
+      [4, "Rentabilité", V[4][0], K(o.rn), `résultat net · courant / CA ${P1(o.rcai)} (secteur ${P1(ss.med("rcai"))})`, curve(hRn, 0, V[4][0], K), V[4][1]],
+      ["€", "Reprise", V["€"][0], V.titres, V.titresSub, V.years ? Analyse.miniBars(V.years, 7, V["€"][0], "repère 7 ans", `${Y(V.years)}`) + `<span class="cube-y">remboursement de la dette d'acquisition · repère 7 ans</span>` : "", V["€"][1]],
+    ];
+    return `<div class="cubes">${tiles.map(([n, t, s, big, sub, viz, tip]) => `
+      <button class="cube ${s || "grey"}" data-open="${n}" title="${esc(String(tip || "").replace(/<[^>]+>/g, ""))} — cliquer pour le détail">
+        <span class="cube-h"><span class="num">${n}</span>${light(s || "grey")}<span>${t}</span></span>
+        <b class="cube-v">${big}</b><span class="cube-s">${sub}</span>${viz}
+      </button>`).join("")}</div>
+      <p class="note cubes-note">Courbes : les exercices déposés ; pointillé : le repère (médiane des PME comparables, zéro). Barres : la société face à son repère. Cliquer une vignette pour le détail.</p>`;
+  }
   function bench(ss, k, v, fmt, hib = true) {
     const m = ss.med(k);
     if (!ok(m)) return "";
@@ -309,7 +335,7 @@ const PME = (() => {
     const head = v
       ? `<span class="num">${n}</span>${light(v[0])}<span class="st-t"><b>${title}</b><span class="st-v">${v[1]}</span></span>`
       : `<span class="num">${n}</span>${title}<small>${sub}</small>`;
-    return `<details class="step${v ? " vstep" : ""}" name="etapes"><summary class="step-h">${head}<span class="open-hint">détail</span></summary>${body}</details>`;
+    return `<details class="step${v ? " vstep" : ""}" data-n="${n}" name="etapes"><summary class="step-h">${head}<span class="open-hint">détail</span></summary>${body}</details>`;
   }
 
   function histChart(o) {
@@ -483,6 +509,7 @@ const PME = (() => {
       <h2>${esc(o.n)}</h2>
       <p class="meta">${esc(o.com || "")} (${esc(o.dep || "")}) · NAF ${esc(o.naf || "")} — ${esc(data.meta.sections[o.sec] || "")} · effectif ${esc(o.eff || "—")} · créée en ${esc(o.cr || "—")} · exercice ${o.y}
         · SIREN ${esc(o.siren)} · <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(o.siren)}" target="_blank" rel="noopener">fiche officielle</a></p>
+      ${cubes(o, ss, { ...curV, titres: ok(titres) ? `${K(titres)}` : "—", titresSub: ok(titres) ? `titres${ok(pc.treso) ? "" : " hors trésorerie"} · ${nf1.format(mult)}× ${gloss("EBE retraité")}` : "EBE retraité négatif", years })}
       <h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— deux questions, puis les 4 étapes ; cliquer une ligne pour le détail</small></h3>
       ${step("A", "Actionnaire : l'entreprise crée-t-elle de la valeur ?", "", `<div class="card"><h3>Rentabilité : ce que publie la base</h3><div class="kpis">
           ${kpi("Marge nette", P1(o.nm), bench(ss, "nm", o.nm, P1))}
@@ -541,6 +568,12 @@ const PME = (() => {
       <p class="note">Comparaison avec les PME ${esc(ss.label)}. Comptes sociaux déposés au greffe ; ratios calculés par la base publique BCE / INPI. Verdicts automatiques, à confirmer par l'analyse économique et les comptes complets.</p>`;
     curV = null;
     $("detailBody").onclick = (e) => {
+      const cb = e.target.closest("[data-open]");
+      if (cb) {
+        const d = $("detailBody").querySelector(`details[data-n="${cb.dataset.open}"]`);
+        if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        return;
+      }
       const peer = e.target.closest("tr[data-peer]");
       if (peer) { const c = state.companies.find((x) => x.id === peer.dataset.peer); if (c) openDetail(c); return; }
       if (e.target.id !== "toLbo") return;
