@@ -55,6 +55,8 @@ jobs:
         run: python collect/rates.py || true
       - name: Fusion
         run: python collect/build.py
+      - name: Indices boursiers (CAC 40, Euro Stoxx 50, S&P 500)
+        run: python collect/indices.py || true
       - name: Site
         run: |
           mkdir -p _site/data

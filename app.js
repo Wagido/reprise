@@ -150,6 +150,7 @@ function readFilters() {
   return {
     q: $("q").value.trim().toLowerCase(),
     country: $("country").value,
+    index: $("index").value,
     sector: $("sector").value,
     year: Number($("year").value),
     revMin: num("revMin"), revMax: num("revMax"),
@@ -165,6 +166,7 @@ function compute(ignoreSector = false) {
   const out = [];
   for (const c of state.companies) {
     if (f.country && (c.z || c.c) !== f.country) continue;
+    if (f.index && !(c.ix || []).includes(f.index)) continue;
     if (!ignoreSector && f.sector && c.s !== f.sector) continue;
     if (f.q) {
       const hay = c._hay || (c._hay = `${c.n} ${c.t || ""} ${c.sd || ""}`.toLowerCase());
@@ -698,7 +700,7 @@ function exportCsv() {
 }
 
 // ---------- Mémoire des filtres (pratique, non essentielle) ----------
-const FILTER_IDS = ["q", "country", "sector", "year", "revMin", "revMax", "ebitdaMin", "levMax", "profit3", "complete", "banks", "favOnly", "strat"];
+const FILTER_IDS = ["q", "country", "index", "sector", "year", "revMin", "revMax", "ebitdaMin", "levMax", "profit3", "complete", "banks", "favOnly", "strat"];
 function saveFilters() {
   try {
     const o = {};
@@ -923,6 +925,9 @@ async function init() {
     Object.entries(meta.zones).filter(([k]) => zc[k]).map(([k, v]) => `<option value="${k}">${esc(v)} (${nf0.format(zc[k])})</option>`).join("");
   $("methodPlan").innerHTML = Analyse.methodHtml;
   $("sector").innerHTML += Object.entries(meta.sectors).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  // Indices boursiers (collect/indices.py) : membres retrouvés dans la base.
+  $("index").innerHTML += Object.entries(meta.indices || {}).filter(([, v]) => v.found > 0)
+    .map(([k, v]) => `<option value="${esc(k)}">${esc(k)} (${v.found}${v.found < v.members ? " sur " + v.members : ""})</option>`).join("");
   $("year").innerHTML = [...meta.years].reverse().map((y) => `<option>${y}</option>`).join("");
   $("year").value = String(defaultYear());
   loadFilters();
