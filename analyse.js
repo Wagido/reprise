@@ -1220,7 +1220,9 @@ const Analyse = (() => {
     let lo = Math.min(...all), hi = Math.max(...all);
     if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
     const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
-    const n = vals.length, x = (k) => 4 + k / Math.max(1, n - 1) * 142, y = (v) => 36 - (v - lo) / (hi - lo) * 32;
+    // Abscisses sur les seuls exercices disponibles : la courbe occupe toute la largeur.
+    const k0 = pts[0][0], k1 = pts[pts.length - 1][0];
+    const x = (k) => 4 + (k - k0) / Math.max(1, k1 - k0) * 142, y = (v) => 36 - (v - lo) / (hi - lo) * 32;
     const line = pts.map(([k, v]) => `${x(k).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
     const [lk, lv] = pts[pts.length - 1];
     return `<svg class="spk" viewBox="0 0 150 40" preserveAspectRatio="none">
@@ -1235,7 +1237,7 @@ const Analyse = (() => {
     const cash = ok(f.netDebt) && f.netDebt <= 0;
     const rows = Object.fromEntries(V.rows.map(([n, , s]) => [n, s]));
     const tiles = [
-      ["A", "Crée-t-elle de la valeur ?", V.val[0], `${P(f.roce)} <small>vs ${P(f.k)}</small>`, `ROCE après IS face au coût du capital${ok(f.eva) ? ` · ${f.eva >= 0 ? "+" : ""}${M(f.eva)} M ${cur}` : ""}`, hist((x) => x.roce), f.k, P],
+      ["A", "Crée-t-elle de la valeur ?", V.val[0], `${P(f.roce)} <small>vs ${P(f.k)}</small>`, `${ok(f.roce) && Math.abs(f.roce) > 1 ? `<span class="warn">⚠ valeur hors norme : capitaux employés très faibles ou donnée à vérifier</span> · ` : ""}ROCE après IS face au coût du capital${ok(f.eva) ? ` · ${f.eva >= 0 ? "+" : ""}${M(f.eva)} M ${cur}` : ""}`, hist((x) => x.roce), f.k, P],
       ["P", "Peut-elle rembourser ?", V.solv[0], cash ? "Trésorerie nette" : X(f.ndEbitda), cash ? `${M(-f.netDebt)} M ${cur} de trésorerie nette` : `dette nette / EBE (repère ≤ 3×) · couverture ${X(f.coverage)}`, hist((x) => x.ndEbitda), 3, X],
       [1, "Marges", rows[1], P(f.ebitdaMargin), `marge d'EBE · secteur ${P(med("ebitdaMargin"))} · croissance ${P(f.growth)}/an`, hist((x) => x.ebitdaMargin), med("ebitdaMargin"), P],
       [2, "Investissements", rows[2], D(f.bfrDays), `BFR en jours de CA${ok(f.capexDa) ? ` · invest. / amort. ${X(f.capexDa)}` : ""}`, hist((x) => x.bfrDays), med("bfrDays"), D],
