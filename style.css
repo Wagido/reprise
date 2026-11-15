@@ -611,3 +611,6 @@ details.vstep .st-v { font-size: 13.5px; color: var(--muted); line-height: 1.45;
 .spk-l { fill: none; stroke: #2a78d6; stroke-width: 1.8; vector-effect: non-scaling-stroke; }
 .spk-ref { stroke: var(--muted); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .7; }
 .cube-y { font-size: 10.5px; color: var(--muted); text-align: right; }
+.cube-v small { white-space: nowrap; }
+.cubes-note { margin: -8px 0 14px; }
+.cube-h span:last-child { line-height: 1.25; }

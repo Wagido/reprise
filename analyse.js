@@ -1249,13 +1249,14 @@ const Analyse = (() => {
       <button class="cube ${s || "grey"}" data-open="${n}" title="Ouvrir le détail">
         <span class="cube-h"><span class="num">${n}</span>${light(s || "grey")}<span>${t}</span></span>
         <b class="cube-v">${big}</b><span class="cube-s">${sub}</span>
-        ${h ? spark(h, ref, s, fmt) + (h.filter(ok).length >= 2 ? `<span class="cube-y">${ys[from + h.findIndex(ok)]}–${ys[i]}${ok(ref) ? " · pointillé : repère" : ""}</span>` : "") : n === "€" && ok(f.vae) && ok(f.vaeTh) ? vaeBar(f.vae, f.vaeTh, s) : ""}
-      </button>`).join("")}</div>`;
+        ${h ? spark(h, ref, s, fmt) + (h.filter(ok).length >= 2 ? `<span class="cube-y">${ys[from + h.findIndex(ok)]}–${ys[i]}</span>` : "") : n === "€" && ok(f.vae) && ok(f.vaeTh) ? vaeBar(f.vae, f.vaeTh, s) : ""}
+      </button>`).join("")}</div>
+      <p class="note cubes-note">Courbes : les derniers exercices ; pointillé : le repère (coût du capital, médiane du secteur, dette nette / EBE de 3×, flux nul). Cliquer une vignette pour le détail.</p>`;
   }
   function vaeBar(obs, th, s) {
     const hi = Math.max(obs, th) * 1.1, w = (v) => Math.max(2, v / hi * 142);
     return `<svg class="spk" viewBox="0 0 150 40"><rect x="4" y="6" width="${w(th).toFixed(1)}" height="11" rx="2" fill="#b9c3cf"><title>justifié ${X(th)}</title></rect>
-      <rect x="4" y="22" width="${w(obs).toFixed(1)}" height="11" rx="2" fill="${COLOR[s] || COLOR.grey}"><title>observé ${X(obs)}</title></rect></svg><span class="cube-y">gris : justifié · couleur : observé</span>`;
+      <rect x="4" y="22" width="${w(obs).toFixed(1)}" height="11" rx="2" fill="${COLOR[s] || COLOR.grey}"><title>observé ${X(obs)}</title></rect></svg><span class="cube-y">gris : justifié · couleur : marché</span>`;
   }
 
   // Phrase d'identité en tête de fiche.
