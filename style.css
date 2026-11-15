@@ -585,3 +585,12 @@ table.pf td.lights .light { margin-right: 3px; }
 .pf-bar { display: grid; grid-template-columns: minmax(140px, 260px) 1fr 48px; align-items: center; gap: 10px; font-size: 14px; }
 .pf-bar i { display: block; height: 12px; border-radius: 3px; background: #2a78d6; min-width: 2px; }
 .pf-bar b { text-align: right; }
+
+/* Fiche : lignes de verdict repliables (synthèse et détail réunis) */
+details.vstep > summary.step-h { align-items: flex-start; }
+details.vstep > summary.step-h .light { margin-top: 7px; }
+details.vstep .st-t { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+details.vstep .st-t b { font-size: 16px; font-weight: 600; }
+details.vstep .st-v { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+#detailBody p.intro { margin: 4px 0 10px; }
+#detailBody .meta .score { margin-right: 4px; }

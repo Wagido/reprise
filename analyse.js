@@ -558,8 +558,15 @@ const Analyse = (() => {
   const D = (v) => (ok(v) ? nf0.format(v) + " j" : "—");
   const light = (state) => `<i class="light ${state}" aria-label="${state === "green" ? "bon" : state === "orange" ? "à surveiller" : state === "red" ? "alerte" : "inconnu"}"></i>`;
   // Chaque étape est repliable : on lit d'abord le résumé, on ouvre le détail au besoin.
+  // Une ligne repliable. Si la fiche a un verdict pour n (étapes 1 à 4, A = actionnaire, P = prêteur,
+  // € = marché), l'en-tête montre le feu et la phrase de verdict : synthèse et détail ne font qu'un.
+  let curV = null;
   function step(n, title, sub, body) {
-    return `<details class="step" name="etapes"><summary class="step-h"><span class="num">${n}</span>${title}<small>${sub}</small><span class="open-hint">détail</span></summary>${body}</details>`;
+    const v = curV && curV[n];
+    const head = v
+      ? `<span class="num">${n}</span>${light(v[0])}<span class="st-t"><b>${title}</b><span class="st-v">${v[1]}</span></span>`
+      : `<span class="num">${n}</span>${title}<small>${sub}</small>`;
+    return `<details class="step${v ? " vstep" : ""}" name="etapes"><summary class="step-h">${head}<span class="open-hint">détail</span></summary>${body}</details>`;
   }
 
   // Valeur estimée des capitaux propres : multiple sectoriel et flux actualisés (même méthode que le stock picking).
@@ -872,14 +879,15 @@ const Analyse = (() => {
         ${kpi("Liquidité générale", X(f.liqGen), `<small class="bench">actif circulant / dettes à court terme</small>`)}
         ${kpi("Altman Z''", ok(f.zScore) ? nf1.format(f.zScore) : "—", `<small class="bench">> 2,6 risque faible ; < 1,1 risque élevé</small>`)}
       </div>`;
-    return step("✓", "Conclusion de l'analyse financière", "les réponses aux deux questions",
-      card("Du point de vue des actionnaires : l'entreprise crée-t-elle de la valeur ?", "", `<p class="verdict-line">${light(V.val[0])}${V.val[1]}</p>` +
+    return {
+      share: card("Création de valeur : rentabilité économique et coût du capital", "",
         (f.nrRepeat ? `<p class="note warn">⚠ Des éléments « non récurrents » sont retirés trois années de suite : ils font partie de l'activité. Le ROCE sur le résultat publié (${P(f.roceReported)}) est ici le plus prudent.</p>` : "") + share,
         `Une entreprise crée de la valeur quand sa rentabilité économique après impôt (ROCE) dépasse le coût moyen pondéré du capital (CMPC) exigé par
          actionnaires et prêteurs. Le ROCE se juge sur le résultat d'exploitation courant, hors éléments réellement exceptionnels (dépréciations, plus-values
-         de cession), avec un taux d'impôt normatif (moyenne sur 3 ans) et des capitaux employés moyens. L'effet de levier augmente le ROE mais aussi le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`) +
-      card("Du point de vue des prêteurs : peut-elle rembourser ses dettes ?", "", `<p class="verdict-line">${light(V.solv[0])}${V.solv[1]}</p>` + lend,
-        "Solvabilité : la dette se rembourse par l'exploitation (dette nette / EBE, couverture des intérêts, flux disponible). Liquidité : les échéances des dettes face à la vitesse de transformation des actifs en trésorerie."));
+         de cession), avec un taux d'impôt normatif (moyenne sur 3 ans) et des capitaux employés moyens. L'effet de levier augmente le ROE mais aussi le coût des fonds propres (bêta réendetté) : il ne crée pas de valeur.`),
+      lend: card("Solvabilité et liquidité", "", lend,
+        "Solvabilité : la dette se rembourse par l'exploitation (dette nette / EBE, couverture des intérêts, flux disponible). Liquidité : les échéances des dettes face à la vitesse de transformation des actifs en trésorerie. Le détail (tableau de flux, bilan) est dans l'étape 3."),
+    };
   }
 
   // ---------- Partie 2 : le marché paie-t-il déjà la valeur créée ? ----------
@@ -902,7 +910,7 @@ const Analyse = (() => {
   }
   function marketCard(c, f, i, st, mv) {
     const cur = esc(c.cur);
-    return card("Le prix de marché face à la valeur créée", "", `<p class="verdict-line">${light(mv[0])}${mv[1]}</p><div class="kpis">
+    return card("Le prix de marché face à la valeur créée", "", `<div class="kpis">
         ${kpi("VE / capitaux employés", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `justifié sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux employés"}</small>` + bench(st, "vae", f.vae, X, false))}
         ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − capitaux employés</small>`)}
         ${kpi("Capitalisation / capitaux propres (PBR)", X(f.pbr), `<small class="bench">${ok(f.roe) && f.kE > 0 ? `justifié sans croissance : ROE / coût des fonds propres = ${X(f.roe / f.kE)}` : ""}</small>`)}
@@ -1175,7 +1183,7 @@ const Analyse = (() => {
     // 3. Financement
     const cash = ok(f.netDebt) && f.netDebt <= 0;
     let s3 = "grey", t3 = "Endettement non calculable.";
-    if (cash) { s3 = "green"; t3 = `Trésorerie nette de ${M(-f.netDebt)} : aucun risque d'endettement.`; }
+    if (cash) { s3 = "green"; t3 = `Trésorerie nette de ${M(-f.netDebt)} M ${esc(c.cur)} : aucun risque d'endettement.`; }
     else if (ok(f.ndEbitda)) {
       s3 = f.ndEbitda <= 3 && (!ok(f.coverage) || f.coverage >= 3) ? "green" : f.ndEbitda > 4 || (ok(f.coverage) && f.coverage < 1.5) ? "red" : "orange";
       t3 = `Dette nette / EBE ${X(f.ndEbitda)}, couverture des intérêts ${X(f.coverage)} (repères : ≤ 3× et ≥ 3×).`;
@@ -1201,33 +1209,37 @@ const Analyse = (() => {
     return { rows: verdict, val: [val[0], valTxt], solv: [solv[0], solvTxt] };
   }
 
-  // Carte d'en-tête : les deux parties de l'analyse et leurs réponses.
-  function answers(c, f, i, st, V, mv) {
+  // Phrase d'identité en tête de fiche.
+  function intro(c, f, i) {
     const sec = state.meta.sectors[c.s] || "";
     const size = !ok(f.rev) ? "" : f.rev >= 10000 ? "un géant" : f.rev >= 1000 ? "une grande entreprise" : f.rev >= 100 ? "une entreprise moyenne" : "une petite entreprise";
-    const intro = `<b>${esc(c.n)}</b> est ${size} du secteur ${esc(sec.split(/[,(]/)[0].trim().toLowerCase())} : ${M(f.rev)} M ${esc(c.cur)} de chiffre d'affaires${ok(f.growth) ? `, ${f.growth >= 0.02 ? "en croissance" : f.growth <= -0.02 ? "en recul" : "stable"} (${P(f.growth)} par an sur 3 ans)` : ""}.`;
-    const q = (s, who, question, txt) => `<div class="q-row">${light(s)}<div><b>${who}</b> <i>${question}</i><span>${txt}</span></div></div>`;
-    return `<div class="card synth answers"><p class="intro">${intro} <small>Exercice ${state.meta.years[i]}.</small></p>
-      <h3><span class="part-n">1</span> L'analyse financière <small>— deux questions</small></h3>
-      ${q(V.val[0], "Actionnaire :", "l'entreprise crée-t-elle de la valeur ?", V.val[1])}
-      ${q(V.solv[0], "Prêteur :", "peut-elle rembourser ses dettes ?", V.solv[1])}
-      <div class="synth-grid">${V.rows.map(([n, k, s, t]) => `<div class="synth-row"><span class="num">${n}</span>${light(s)}<div><b>${k}</b><span>${t}</span></div></div>`).join("")}</div>
-      <h3><span class="part-n">2</span> Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></h3>
-      ${q(mv[0], "", "", mv[1])}
-      ${ok(f.mcap) && new Date().getFullYear() - state.meta.years[i] >= 2 ? `<p class="note warn">⚠ Comptes ${state.meta.years[i]} : le cours actuel est comparé à des comptes de plus d'un an (le rapport annuel plus récent n'est pas encore dans la base ESEF). Les multiples de marché sont à prendre avec prudence.</p>` : ""}
-      <p class="note">Comparaison avec ${st.n} sociétés cotées du secteur « ${esc(state.meta.sectors[c.s])} », toutes zones. Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
-      <details class="method"><summary>Le plan d'analyse</summary>${METHOD_HTML}</details></div>`;
+    return `<p class="intro"><b>${esc(c.n)}</b> est ${size} du secteur ${esc(sec.split(/[,(]/)[0].trim().toLowerCase())} : ${M(f.rev)} M ${esc(c.cur)} de chiffre d'affaires en ${state.meta.years[i]}${ok(f.growth) ? `, ${f.growth >= 0.02 ? "en croissance" : f.growth <= -0.02 ? "en recul" : "stable"} (${P(f.growth)} par an sur 3 ans)` : ""}.</p>`;
   }
 
+  // La fiche, en une colonne : 1. l'analyse financière (les deux réponses, puis les 4 étapes), 2. le marché.
+  // Chaque ligne porte son feu et sa phrase de verdict, et se déplie pour le détail.
   function render(c, i) {
     const f = figures(c, i);
     const st = sectorStats(c.s, i);
     const V = verdicts(c, f, i, st), mv = marketVerdict(c, f, i, st);
-    return answers(c, f, i, st, V, mv) +
-      `<h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— les 4 étapes, puis la conclusion (cliquer pour ouvrir)</small></h3>` +
-      step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) + conclusion(c, f, i, st, V) + step("+", "Scores complémentaires", "radar sectoriel, Piotroski, Altman", qualityCard(c, f, i, st)) +
+    const K = conclusion(c, f, i, st, V);
+    curV = { A: V.val, P: V.solv, "€": mv };
+    V.rows.forEach(([n, , s, t]) => (curV[n] = [s, t]));
+    const html = intro(c, f, i) +
+      `<h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— deux questions, puis les 4 étapes ; cliquer une ligne pour le détail</small></h3>` +
+      step("A", "Actionnaire : l'entreprise crée-t-elle de la valeur ?", "", K.share) +
+      step("P", "Prêteur : peut-elle rembourser ses dettes ?", "", K.lend) +
+      `<h4 class="sub">Les 4 étapes</h4>` +
+      step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) +
       `<h3 class="part"><span class="part-n">2</span> Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></h3>` +
-      valuation(c, f, i, st);
+      valuation(c, f, i, st) +
+      (ok(f.mcap) && new Date().getFullYear() - state.meta.years[i] >= 2 ? `<p class="note warn">⚠ Comptes ${state.meta.years[i]} : le cours actuel est comparé à des comptes de plus d'un an (le rapport annuel plus récent n'est pas encore dans la base ESEF). Les multiples de marché sont à prendre avec prudence.</p>` : "") +
+      `<h4 class="sub">Pour aller plus loin</h4>` +
+      step("+", "Scores complémentaires", "radar sectoriel, Piotroski, Altman", qualityCard(c, f, i, st)) +
+      `<p class="note">Comparaison avec ${st.n} sociétés cotées du secteur « ${esc(state.meta.sectors[c.s])} », toutes zones. Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
+      <details class="method"><summary>Le plan d'analyse</summary>${METHOD_HTML}</details>`;
+    curV = null;
+    return html;
   }
 
   // Texte de la méthode, affiché dans l'onglet Méthode et dans chaque fiche.
