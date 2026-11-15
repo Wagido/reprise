@@ -3,7 +3,7 @@
 //   Partie 1 — l'analyse financière : 2 graphiques par étape (marges, investissements, financement, rentabilité).
 //   Partie 2 — le marché la paie-t-il déjà ? : création de valeur et prix, ROE × PBR, PER, VE / EBE.
 // Deux lectures : Entreprises (un point par société, couleur = verdict de l'étape) ou Secteurs (une bulle
-// par secteur, à la médiane, taille = nombre de sociétés).
+// par secteur, ratios agrégés du secteur, taille = nombre de sociétés).
 // Dépend de app.js ($, ok, esc, nf0, nf1, state, compute, fx, openDetail) et d'analyse.js.
 
 const TDB = (() => {
@@ -89,21 +89,53 @@ const TDB = (() => {
       f.revE = ok(f.rev) ? f.rev * rate : null;
       f.niE = ok(f.ni) ? f.ni * rate : null;
       f.mcapE = ok(f.mcap) ? f.mcap * rate : null;
-      return { c: r.c, id: r.c.id, sec: r.c.s, f, s, all: s.every((x) => x === "green") };
+      return { c: r.c, id: r.c.id, sec: r.c.s, f, s, rate, all: s.every((x) => x === "green") };
     });
     data.forEach((d, k) => (d.k = k));
   }
 
-  // Médianes par groupe (secteur, section NAF…) : une bulle par groupe d'au moins 5 sociétés.
-  function groupPoints(D, panels, keyOf, labelOf) {
+  // Ratios agrégés du secteur : chaque ratio = numérateur / dénominateur ; l'agrégat est
+  // Σ numérateurs / Σ dénominateurs, soit la moyenne du ratio pondérée par son dénominateur (en euros).
+  // C'est l'économie du secteur, dominée par les grandes sociétés ; la médiane (société typique) reste
+  // dans l'info-bulle. Les grandeurs absolues (CA, résultat, capitalisation) restent à la médiane.
+  const WEIGHT = {
+    growth: (f) => f.rev, ebitdaMargin: (f) => f.rev, bfrDays: (f) => f.rev, capexRev: (f) => f.rev, margin: (f) => f.rev,
+    capexDa: (f) => f.da, ndEbitda: (f) => f.ebitda, evEbitda: (f) => f.ebitda, coverage: (f) => f.interest,
+    roce: (f) => f.ceAvg, rotation: (f) => f.ceAvg, spread: (f) => f.ceAvg, vae: (f) => f.ceAvg,
+    roe: (f) => f.eq, roeSpread: (f) => f.eq, pbr: (f) => f.eq,
+  };
+
+  // Bornes de plausibilité : au-delà, la valeur vient presque toujours d'une erreur de données (unité
+  // déclarée en milliers, capitaux employés quasi nuls) et fausserait la somme du secteur ; exclue de l'agrégat.
+  const LIM = {
+    growth: [-0.5, 1], ebitdaMargin: [-1, 1], bfrDays: [-365, 365], capexRev: [0, 1], margin: [-1, 1],
+    capexDa: [0, 10], ndEbitda: [-20, 20], evEbitda: [0, 100], coverage: [-100, 1000],
+    roce: [-1, 1], rotation: [0, 20], spread: [-1, 1], vae: [0, 100], roe: [-1.5, 1.5], roeSpread: [-1.5, 1.5], pbr: [0, 100],
+  };
+
+  // Une bulle par groupe (secteur, section NAF…) d'au moins 5 sociétés : ratios agrégés si weights
+  // est fourni (sociétés cotées), sinon médianes (PME : la base ne donne que des ratios).
+  function groupPoints(D, panels, keyOf, labelOf, weights = null) {
     const by = new Map();
     for (const d of D) { const k = keyOf(d); if (k) { if (!by.has(k)) by.set(k, []); by.get(k).push(d); } }
     const keys = [...new Set(panels.flatMap((p) => [p.x.k, p.y.k]))];
     const med = (a) => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+    const agg = (ds, key) => {
+      let num = 0, den = 0;
+      for (const d of ds) {
+        const v = d.f[key], w = weights[key](d.f);
+        if (!ok(v) || !ok(w) || w <= 0 || (LIM[key] && (v < LIM[key][0] || v > LIM[key][1]))) continue;
+        num += v * w * (d.rate || 1); den += w * (d.rate || 1);
+      }
+      return den > 0 ? num / den : null;
+    };
     return [...by.entries()].filter(([, ds]) => ds.length >= 5).map(([k, ds]) => {
-      const f = {};
-      for (const key of keys) f[key] = med(ds.map((d) => d.f[key]).filter(ok));
-      return { grp: k, label: labelOf(k), n: ds.length, f };
+      const f = {}, m = {};
+      for (const key of keys) {
+        m[key] = med(ds.map((d) => d.f[key]).filter(ok));
+        f[key] = weights && weights[key] ? agg(ds, key) : m[key];
+      }
+      return { grp: k, label: labelOf(k), n: ds.length, f, m, agg: !!weights };
     });
   }
 
@@ -166,12 +198,12 @@ const TDB = (() => {
     }
     let marks = "", counts = null;
     if (groups) {
-      // Mode Secteurs : bulles aux médianes, nom placé à droite, à gauche, au-dessus ou en dessous.
+      // Mode Secteurs : bulles aux ratios agrégés, nom placé à droite, à gauche, au-dessus ou en dessous.
       const pts = groups.filter((q) => valid(p.x, q.f[p.x.k]) && valid(p.y, q.f[p.y.k])).sort((a, b) => b.n - a.n);
       const maxN = Math.max(1, ...pts.map((q) => q.n));
       const rad = (q) => 5 + 13 * Math.sqrt(q.n / maxN);
       const bub = pts.map((q) => [sx(q.f[p.x.k]), sy(q.f[p.y.k]), rad(q)]);
-      pts.forEach((q, j) => { marks += `<circle class="sb" data-grp="${esc(q.grp)}" cx="${bub[j][0].toFixed(1)}" cy="${bub[j][1].toFixed(1)}" r="${bub[j][2].toFixed(1)}"><title>${esc(q.label)} (${q.n} sociétés)\n${esc(p.x.label)} : ${p.x.fmt(q.f[p.x.k])}\n${esc(p.y.label)} : ${p.y.fmt(q.f[p.y.k])}</title></circle>`; });
+      pts.forEach((q, j) => { marks += `<circle class="sb" data-grp="${esc(q.grp)}" cx="${bub[j][0].toFixed(1)}" cy="${bub[j][1].toFixed(1)}" r="${bub[j][2].toFixed(1)}"><title>${esc(q.label)} (${q.n} sociétés)${q.agg ? " — ensemble du secteur" : ""}\n${esc(p.x.label)} : ${p.x.fmt(q.f[p.x.k])}${q.agg && q.m && q.m[p.x.k] !== q.f[p.x.k] && ok(q.m[p.x.k]) ? ` (société typique : ${p.x.fmt(q.m[p.x.k])})` : ""}\n${esc(p.y.label)} : ${p.y.fmt(q.f[p.y.k])}${q.agg && q.m && q.m[p.y.k] !== q.f[p.y.k] && ok(q.m[p.y.k]) ? ` (société typique : ${p.y.fmt(q.m[p.y.k])})` : ""}</title></circle>`; });
       const placed = [];
       pts.forEach((q, j) => {
         const [cx, cy, rr] = bub[j], w = q.label.length * 6.4;
@@ -222,7 +254,7 @@ const TDB = (() => {
     const sec = mode === "sec";
     $("tdbOut").innerHTML = `
       <div class="card tdb-intro"><h3>Toutes les sociétés, selon le plan d'analyse ${modeSwitch(mode)}</h3>
-        <p class="note">${sec ? `Une bulle par secteur (5 sociétés au moins), placée à la médiane de ses sociétés ; taille = nombre de sociétés. Cliquer une bulle affiche les sociétés de ce secteur (filtre Secteur du haut).`
+        <p class="note">${sec ? `Une bulle par secteur (5 sociétés au moins), placée sur les ratios de l’ensemble du secteur (somme des montants de ses sociétés, en euros : le poids des grandes sociétés y est donc important) ; survoler une bulle donne aussi la société typique (médiane). Taille = nombre de sociétés. Cliquer une bulle affiche les sociétés de ce secteur (filtre Secteur du haut).`
           : `Chaque point est une société (filtres du haut appliqués, exercice ${$("year").value}). Sa couleur est le verdict de l'étape, avec les mêmes règles que la synthèse des fiches :
           <span class="cnt"><i class="sw s-green"></i>bon <i class="sw s-orange"></i>à surveiller <i class="sw s-red"></i>alerte</span> ; dans la partie 2, le verdict de rentabilité (création de valeur). Survoler un point montre la société dans tous les graphiques.`}</p>
         ${sec ? "" : `<label class="check tdb-toggle"><input type="checkbox" id="tdbAll" ${onlyAll ? "checked" : ""}> N'afficher que les sociétés bonnes dans les 4 étapes (${nf0.format(good.length)} sur ${nf0.format(data.length)})</label>
@@ -240,7 +272,7 @@ const TDB = (() => {
           <td>${ok(d.f.netDebt) && d.f.netDebt <= 0 ? "trésorerie nette" : ok(d.f.ndEbitda) ? X(d.f.ndEbitda) : "—"}</td><td>${ok(d.f.roce) ? P(d.f.roce) : "—"}</td><td>${ok(d.f.per) ? nf1.format(d.f.per) : "—"}</td></tr>`).join("")}
         </tbody></table></div>${good.length > 100 ? `<p class="note">Les 100 premières sur ${good.length}.</p>` : ""}</details>`;
     const size = fit($("tdbGrid1"));
-    const groups = sec ? groupPoints(data, PART1.concat(PART2), (d) => d.sec, (k) => (state.meta.sectors[k] || k).split(/[,(&]/)[0].trim()) : null;
+    const groups = sec ? groupPoints(data, PART1.concat(PART2), (d) => d.sec, (k) => (state.meta.sectors[k] || k).split(/[,(&]/)[0].trim(), WEIGHT) : null;
     const o = { only: onlyAll, hot, size, groups };
     $("tdbGrid1").innerHTML = PART1.map((pn) => panel(pn, data, o)).join("");
     $("tdbGrid2").innerHTML = PART2.map((pn) => panel(pn, data, o)).join("");
