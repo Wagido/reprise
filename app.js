@@ -657,6 +657,12 @@ function openDetail(c, yearIdx, tab) {
       if (state.view === "list") renderList(); else if (state.view === "pick") Picking.render();
       return;
     }
+    const cb = e.target.closest("[data-open]");
+    if (cb) {
+      const d = $("detailBody").querySelector(`details[data-n="${cb.dataset.open}"]`);
+      if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      return;
+    }
     const b = e.target.closest("button.chip");
     if (!b) return;
     const scroll = $("detail").querySelector(".detail-inner").scrollTop;

@@ -566,7 +566,7 @@ const Analyse = (() => {
     const head = v
       ? `<span class="num">${n}</span>${light(v[0])}<span class="st-t"><b>${title}</b><span class="st-v">${v[1]}</span></span>`
       : `<span class="num">${n}</span>${title}<small>${sub}</small>`;
-    return `<details class="step${v ? " vstep" : ""}" name="etapes"><summary class="step-h">${head}<span class="open-hint">détail</span></summary>${body}</details>`;
+    return `<details class="step${v ? " vstep" : ""}" data-n="${n}" name="etapes"><summary class="step-h">${head}<span class="open-hint">détail</span></summary>${body}</details>`;
   }
 
   // Valeur estimée des capitaux propres : multiple sectoriel et flux actualisés (même méthode que le stock picking).
@@ -1177,7 +1177,7 @@ const Analyse = (() => {
     if (ok(f.bfrDays) || ok(f.capexDa)) {
       s2 = ok(dBfr) && dBfr > 10 ? "orange" : "green";
       if (ok(f.rotation) && st.rotation && ok(st.rotation.median) && f.rotation < st.rotation.median * 0.7) s2 = "orange";
-      t2 = `BFR ${D(f.bfrDays)} de CA${ok(dBfr) ? ` (${dBfr >= 0 ? "+" : ""}${nf0.format(dBfr)} j en 3 ans)` : ""} ; investissements de ${capexNature(f.capexDa)}${ok(f.capexDa) ? ` (${X(f.capexDa)} les amortissements)` : ""} ; rotation de l'actif ${X(f.rotation)}.`;
+      t2 = `BFR ${D(f.bfrDays)} de CA${ok(dBfr) ? ` (${dBfr >= 0 ? "+" : ""}${nf0.format(dBfr)} j en 3 ans)` : ""}${ok(f.capexDa) ? ` ; investissements de ${capexNature(f.capexDa)} (${X(f.capexDa)} les amortissements)` : ""} ; rotation de l'actif ${X(f.rotation)}.`;
     }
     verdict.push([2, "Investissements", s2, t2]);
     // 3. Financement
@@ -1209,6 +1209,55 @@ const Analyse = (() => {
     return { rows: verdict, val: [val[0], valTxt], solv: [solv[0], solvTxt] };
   }
 
+  // ---------- Synthèse visuelle : une vignette par réponse et par étape ----------
+  // Feu, chiffre clé, et petite courbe sur les exercices disponibles avec son repère (coût du capital,
+  // médiane du secteur, seuil). Un clic ouvre la rubrique correspondante.
+  const COLOR = { green: "#1e8a4c", orange: "#d9922e", red: "#c8402f", grey: "#9aa3ad" };
+  function spark(vals, ref, state, fmt) {
+    const pts = vals.map((v, k) => [k, v]).filter(([, v]) => ok(v));
+    if (pts.length < 2) return `<svg class="spk" viewBox="0 0 150 40"></svg>`;
+    const all = pts.map(([, v]) => v).concat(ok(ref) ? [ref] : []);
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+    const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+    const n = vals.length, x = (k) => 4 + k / Math.max(1, n - 1) * 142, y = (v) => 36 - (v - lo) / (hi - lo) * 32;
+    const line = pts.map(([k, v]) => `${x(k).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const [lk, lv] = pts[pts.length - 1];
+    return `<svg class="spk" viewBox="0 0 150 40" preserveAspectRatio="none">
+      ${ok(ref) ? `<line x1="2" x2="148" y1="${y(ref).toFixed(1)}" y2="${y(ref).toFixed(1)}" class="spk-ref"><title>repère ${fmt(ref)}</title></line>` : ""}
+      <polyline points="${line}" class="spk-l"/><circle cx="${x(lk).toFixed(1)}" cy="${y(lv).toFixed(1)}" r="3.2" fill="${COLOR[state] || COLOR.grey}"/></svg>`;
+  }
+  function cubes(c, f, i, st, V, mv) {
+    const ys = state.meta.years, from = Math.max(0, i - 5);
+    const hist = (g) => ys.slice(from, i + 1).map((_, k) => { const x = figures(c, from + k); return x && ok(x.rev) ? g(x) : null; });
+    const med = (k) => st[k] && ok(st[k].median) ? st[k].median : null;
+    const cur = esc(c.cur);
+    const cash = ok(f.netDebt) && f.netDebt <= 0;
+    const rows = Object.fromEntries(V.rows.map(([n, , s]) => [n, s]));
+    const tiles = [
+      ["A", "Crée-t-elle de la valeur ?", V.val[0], `${P(f.roce)} <small>vs ${P(f.k)}</small>`, `ROCE après IS face au coût du capital${ok(f.eva) ? ` · ${f.eva >= 0 ? "+" : ""}${M(f.eva)} M ${cur}` : ""}`, hist((x) => x.roce), f.k, P],
+      ["P", "Peut-elle rembourser ?", V.solv[0], cash ? "Trésorerie nette" : X(f.ndEbitda), cash ? `${M(-f.netDebt)} M ${cur} de trésorerie nette` : `dette nette / EBE (repère ≤ 3×) · couverture ${X(f.coverage)}`, hist((x) => x.ndEbitda), 3, X],
+      [1, "Marges", rows[1], P(f.ebitdaMargin), `marge d'EBE · secteur ${P(med("ebitdaMargin"))} · croissance ${P(f.growth)}/an`, hist((x) => x.ebitdaMargin), med("ebitdaMargin"), P],
+      [2, "Investissements", rows[2], D(f.bfrDays), `BFR en jours de CA${ok(f.capexDa) ? ` · invest. / amort. ${X(f.capexDa)}` : ""}`, hist((x) => x.bfrDays), med("bfrDays"), D],
+      ok(f.fcf) ? [3, "Financement", rows[3], `${M(f.fcf)} <small>M ${cur}</small>`, `flux de trésorerie disponible${ok(f.rev) && f.rev > 0 ? ` · ${P(f.fcf / f.rev)} du CA` : ""}`, hist((x) => x.fcf), 0, M]
+        : ok(f.cfo) ? [3, "Financement", rows[3], `${M(f.cfo)} <small>M ${cur}</small>`, "flux d'exploitation (investissements non publiés)", hist((x) => x.cfo), 0, M]
+          : [3, "Financement", rows[3], cash ? "Trésorerie nette" : X(f.ndEbitda), "flux de trésorerie non publiés · dette nette / EBE", hist((x) => x.ndEbitda), 3, X],
+      [4, "Rentabilité", rows[4], `${P(f.roe)} <small>vs ${P(f.kE)}</small>`, `ROE face au coût des fonds propres · ROCE ${P(f.roce)}`, hist((x) => x.roe), f.kE, P],
+      ["€", "Le marché la paie-t-il ?", mv[0], ok(f.vae) ? `${X(f.vae)} <small>vs ${X(f.vaeTh)}</small>` : "—", ok(f.vae) ? "VE / capitaux employés, observé face au justifié sans croissance" : "pas de cours", null, null, X],
+    ];
+    return `<div class="cubes">${tiles.map(([n, t, s, big, sub, h, ref, fmt]) => `
+      <button class="cube ${s || "grey"}" data-open="${n}" title="Ouvrir le détail">
+        <span class="cube-h"><span class="num">${n}</span>${light(s || "grey")}<span>${t}</span></span>
+        <b class="cube-v">${big}</b><span class="cube-s">${sub}</span>
+        ${h ? spark(h, ref, s, fmt) + (h.filter(ok).length >= 2 ? `<span class="cube-y">${ys[from + h.findIndex(ok)]}–${ys[i]}${ok(ref) ? " · pointillé : repère" : ""}</span>` : "") : n === "€" && ok(f.vae) && ok(f.vaeTh) ? vaeBar(f.vae, f.vaeTh, s) : ""}
+      </button>`).join("")}</div>`;
+  }
+  function vaeBar(obs, th, s) {
+    const hi = Math.max(obs, th) * 1.1, w = (v) => Math.max(2, v / hi * 142);
+    return `<svg class="spk" viewBox="0 0 150 40"><rect x="4" y="6" width="${w(th).toFixed(1)}" height="11" rx="2" fill="#b9c3cf"><title>justifié ${X(th)}</title></rect>
+      <rect x="4" y="22" width="${w(obs).toFixed(1)}" height="11" rx="2" fill="${COLOR[s] || COLOR.grey}"><title>observé ${X(obs)}</title></rect></svg><span class="cube-y">gris : justifié · couleur : observé</span>`;
+  }
+
   // Phrase d'identité en tête de fiche.
   function intro(c, f, i) {
     const sec = state.meta.sectors[c.s] || "";
@@ -1225,7 +1274,7 @@ const Analyse = (() => {
     const K = conclusion(c, f, i, st, V);
     curV = { A: V.val, P: V.solv, "€": mv };
     V.rows.forEach(([n, , s, t]) => (curV[n] = [s, t]));
-    const html = intro(c, f, i) +
+    const html = intro(c, f, i) + cubes(c, f, i, st, V, mv) +
       `<h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— deux questions, puis les 4 étapes ; cliquer une ligne pour le détail</small></h3>` +
       step("A", "Actionnaire : l'entreprise crée-t-elle de la valeur ?", "", K.share) +
       step("P", "Prêteur : peut-elle rembourser ses dettes ?", "", K.lend) +
