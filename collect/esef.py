@@ -150,6 +150,23 @@ def collect(country="FR", limit=None, log=print, per_entity=None, workers=1):
         docs = pool.map(fetch, chosen)
         docs = list(docs)
 
+    # France : rapports déposés à l'AMF que filings.xbrl.org n'a pas (encore) repris.
+    if country == "FR" and not limit:
+        import amf
+        import ixbrl
+        extra = []
+        for r, doc in amf.missing(filings, names, log=log):
+            lei = ixbrl.lei_of(doc) or r.get("lei")
+            if not lei:
+                continue
+            names.setdefault(lei, r["name"])
+            extra.append(({"lei": lei, "period_end": r["date"][:10], "fxo_id": "amf-" + r["uin"],
+                           "viewer_url": None, "amf_url": r["url"]}, doc))
+        # Après les rapports de filings.xbrl.org : les plus récents l'emportent.
+        extra.sort(key=lambda e: (e[0]["lei"], e[0]["period_end"]))
+        chosen = chosen + [e[0] for e in extra]
+        docs = docs + [e[1] for e in extra]
+
     per_lei = {}
     for i, (f, doc) in enumerate(zip(chosen, docs), 1):
         if not doc:
@@ -171,7 +188,7 @@ def collect(country="FR", limit=None, log=print, per_entity=None, workers=1):
             c["last"] = own
             c["cur"] = cur or c["cur"]
             c["desc"] = desc or c["desc"]
-            c["viewer"] = BASE + quote(f["viewer_url"]) if f.get("viewer_url") else c["viewer"]
+            c["viewer"] = BASE + quote(f["viewer_url"]) if f.get("viewer_url") else f.get("amf_url") or c["viewer"]
 
     companies = []
     for lei, c in per_lei.items():
@@ -203,6 +220,14 @@ def collect(country="FR", limit=None, log=print, per_entity=None, workers=1):
                     estimated.add("debt_total")
             if r:
                 years[str(y)] = r
+        # Garde-fou : un chiffre d'affaires 10 fois plus petit que d'habitude est une ligne partielle
+        # (ex. une seule composante des loyers une année), pas le total : on l'écarte.
+        revs = sorted(r["revenue"] for r in years.values() if r.get("revenue"))
+        if revs:
+            med = revs[len(revs) // 2]
+            for r in years.values():
+                if r.get("revenue") and r["revenue"] < 0.1 * med:
+                    del r["revenue"]
         if not any("revenue" in r for r in years.values()):
             continue
         companies.append({

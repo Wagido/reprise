@@ -159,7 +159,11 @@ US_GAAP = {
 }
 
 IFRS = {
-    "revenue": [["Revenue"], ["RevenueFromContractsWithCustomers"]],
+    "revenue": [["Revenue"], ["RevenueFromContractsWithCustomers"],
+                # Ventes publiées par nature (ex. Sanofi : ventes de biens + autres revenus)
+                ["RevenueFromSaleOfGoods", "RevenueFromRenderingOfServices", "OtherRevenue"],
+                # Foncières : loyers des immeubles de placement
+                ["RentalIncomeFromInvestmentProperty"], ["RentalIncome"]],
     "cost_of_revenue": [["CostOfSales"]],
     "gross_profit": [["GrossProfit"]],
     "sga": [["SellingGeneralAndAdministrativeExpense"], ["DistributionCosts", "AdministrativeExpense"]],
@@ -297,6 +301,9 @@ CUSTOM_RULES = {
                   r"operatingactivitiesrecurring|profitfromrecurringoperations|operatingincomebeforenonrecurring|"
                   r"operatingactivitiesbeforeotherincomeandexpense|operatingprofitbeforeother|resultatoperationnelavantautres"],
             r"^(other|autre)|margin|marge|ratio|asset|liabilit|ebitda|adjust|total|pershare|paraction"),
+    # Chiffre d'affaires sous une étiquette propre (banques : produit net bancaire ; « revenus » ; « ventes nettes »).
+    "revenue": ("D", [r"^(total|net)?(revenues?|sales|netbankingincome|produitnetbancaire|chiffredaffaires|netsales|ventesnettes)(fromcontinuingactivities|desactivitespoursuivies)?$"],
+                r"^$"),
     "net_debt": ("I", [r"netdebt|endettementnet|dettenette|netfinancialdebt|netindebtedness|endettementfinanciernet|dettefinancierenette"],
                  r"change|variation|ratio|ebitda|increase|decrease|before|hors|excluding|avant"),
 }
