@@ -46,6 +46,10 @@ jobs:
         run: python collect/sec_intl.py
       - name: PME françaises
         run: python collect/pme.py
+      - name: Historique des cours (banc d'essai, une fois par mois)
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+        run: python collect/histo.py || true
       - name: Cours de Bourse
         env:
           MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.POLYGON_API_KEY }}
@@ -65,6 +69,7 @@ jobs:
           # Version dans les adresses des fichiers : le navigateur reprend les nouveaux à chaque publication.
           sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g" _site/index.html
           cp data/companies.json data/pme.json _site/data/
+          cp data/histo.json _site/data/ || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

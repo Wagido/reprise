@@ -1393,5 +1393,12 @@ const Analyse = (() => {
     const f = figures(c, i), st = sectorStats(c.s, i);
     return { f, mv: marketVerdict(c, f, i, st), fv: fairValue(c, f, i, st) };
   }
-  return { render, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, spark, miniBars, methodHtml: METHOD_HTML, params, setParam, setFlag, marketK };
+  // Verdicts d'un exercice (feux seulement) : banc d'essai historique.
+  function verdictsAt(c, i) {
+    const f = figures(c, i), st = sectorStats(c.s, i), V = verdicts(c, f, i, st);
+    const o = { A: V.val[0], P: V.solv[0] };
+    V.rows.forEach(([n, , s]) => (o[n] = s));
+    return o;
+  }
+  return { render, verdictsAt, figures: (c, i) => figures(c, i), piotroski, sectorMedians, stepColors, market, spark, miniBars, methodHtml: METHOD_HTML, params, setParam, setFlag, marketK };
 })();

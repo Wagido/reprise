@@ -30,6 +30,7 @@ jobs:
           for f in companies.json pme.json; do
             curl -fsSL --retry 3 "https://wagido.github.io/reprise/data/$f" -o "_site/data/$f"
           done
+          curl -fsSL --retry 3 "https://wagido.github.io/reprise/data/histo.json" -o "_site/data/histo.json" || true
           ls -la _site/data
       - uses: actions/upload-pages-artifact@v3
         with:
