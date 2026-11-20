@@ -1,0 +1,41 @@
+# Banc d'essai : historique des cours du S&P 500, 24 sociétés par jour avec la seconde clé Alpha Vantage.
+# Machine et heure distinctes de la collecte principale (dont les cours de Paris utilisent la première clé).
+# Les séries restent dans le cache GitHub « histo-us- » ; la collecte quotidienne les relit et les publie.
+name: Historique USA
+
+on:
+  schedule:
+    - cron: "41 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: histo-us
+  cancel-in-progress: false
+
+jobs:
+  histo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: cache/prices/histo_us
+          key: histo-us-${{ github.run_id }}
+          restore-keys: histo-us-
+      - name: Liste du S&P 500 (site publié)
+        run: |
+          mkdir -p data
+          curl -fsSL --retry 3 https://wagido.github.io/reprise/data/companies.json -o data/companies.json
+      - name: Cours mensuels (24 sociétés)
+        env:
+          ALPHAVANTAGE_API_KEY_2: ${{ secrets.ALPHAVANTAGE_API_KEY_2 }}
+        run: |
+          python collect/histo.py --us
+          ls cache/prices/histo_us | wc -l

@@ -61,9 +61,13 @@ jobs:
         run: python collect/build.py
       - name: Indices boursiers (CAC 40, Euro Stoxx 50, S&P 500)
         run: python collect/indices.py || true
-      - name: Historique des cours USA (banc d'essai, rotation sur la seconde clé)
-        env:
-          ALPHAVANTAGE_API_KEY_2: ${{ secrets.ALPHAVANTAGE_API_KEY_2 }}
+      # Séries américaines téléchargées par histo-us.yml : on ne fait ici que les relire.
+      - uses: actions/cache/restore@v4
+        with:
+          path: cache/prices/histo_us
+          key: histo-us-none
+          restore-keys: histo-us-
+      - name: Historique des cours USA (relecture du cache)
         run: python collect/histo.py --us || true
       - name: Site
         run: |

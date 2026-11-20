@@ -17,6 +17,8 @@ from prices import http_json, log
 URL = "https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol={symbol}&apikey={key}"
 DIR = os.path.join(CACHE, "prices", "histo")
 MAX_AGE = 30
+# Séries américaines : dossier à part, rempli par le workflow histo-us.yml (autre machine, autre heure que les cours de Paris).
+DIR_US = os.path.join(CACHE, "prices", "histo_us")
 PER_RUN = 20
 US_PER_RUN = 24   # seconde clé gratuite : 25 requêtes par jour
 
@@ -45,8 +47,8 @@ CAC20 = [
 ]
 
 
-def fetch(symbol, key, max_age=MAX_AGE):
-    path = os.path.join(DIR, symbol + ".json")
+def fetch(symbol, key, max_age=MAX_AGE, folder=DIR):
+    path = os.path.join(folder, symbol + ".json")
     if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age * 86400:
         with open(path) as f:
             return json.load(f), False
@@ -60,7 +62,7 @@ def fetch(symbol, key, max_age=MAX_AGE):
     if not m:
         log(f"  {symbol} : pas de série ({str(d)[:120]})")
         return None, True
-    os.makedirs(DIR, exist_ok=True)
+    os.makedirs(folder, exist_ok=True)
     with open(path, "w") as f:
         json.dump(m, f)
     return m, True
@@ -81,7 +83,7 @@ def us_main():
     for c in members:
         symbol = c["t"].replace("-", ".")
         try:
-            m, called = fetch(symbol, key if calls < US_PER_RUN else None, max_age=365)
+            m, called = fetch(symbol, key if calls < US_PER_RUN else None, max_age=365, folder=DIR_US)
         except Exception as e:
             log(f"Historique USA : arrêt sur {symbol} ({e})")
             key = None
