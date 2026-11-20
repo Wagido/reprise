@@ -11,13 +11,14 @@ import os
 import time
 import urllib.parse
 
-from common import CACHE, write_json
+from common import CACHE, read_json, write_json
 from prices import http_json, log
 
 URL = "https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol={symbol}&apikey={key}"
 DIR = os.path.join(CACHE, "prices", "histo")
 MAX_AGE = 30
 PER_RUN = 20
+US_PER_RUN = 24   # seconde clé gratuite : 25 requêtes par jour
 
 # 20 sociétés du CAC 40 hors banques et assurances, avec au moins 4 exercices dans la base (code LEI, ticker Euronext).
 CAC20 = [
@@ -44,9 +45,9 @@ CAC20 = [
 ]
 
 
-def fetch(symbol, key):
+def fetch(symbol, key, max_age=MAX_AGE):
     path = os.path.join(DIR, symbol + ".json")
-    if os.path.exists(path) and time.time() - os.path.getmtime(path) < MAX_AGE * 86400:
+    if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age * 86400:
         with open(path) as f:
             return json.load(f), False
     if not key:
@@ -63,6 +64,36 @@ def fetch(symbol, key):
     with open(path, "w") as f:
         json.dump(m, f)
     return m, True
+
+
+def us_main():
+    """États-Unis : membres du S&P 500, par ordre de taille, 24 par jour avec la seconde clé
+    (ALPHAVANTAGE_API_KEY_2), gardés un an en cache : la rotation fait le tour en trois semaines."""
+    key = os.environ.get("ALPHAVANTAGE_API_KEY_2")
+    d = read_json("companies.json", {"companies": []})
+    ys = (d.get("meta") or {}).get("years") or []
+    def size(c):
+        r = [v for v in (c["v"].get("revenue") or []) if v is not None]
+        return -(r[-1] if r else 0)
+    members = sorted([c for c in d["companies"] if "S&P 500" in (c.get("ix") or []) and c.get("t")], key=size)
+    out = (read_json("histo.json", {}) or {}).get("series", {})
+    calls = done = 0
+    for c in members:
+        symbol = c["t"].replace("-", ".")
+        try:
+            m, called = fetch(symbol, key if calls < US_PER_RUN else None, max_age=365)
+        except Exception as e:
+            log(f"Historique USA : arrêt sur {symbol} ({e})")
+            key = None
+            continue
+        if called:
+            calls += 1
+            time.sleep(13)
+        if m:
+            out[c["id"]] = {"symbol": symbol, "m": [x for x in m if x[0] >= "2019-01"]}
+            done += 1
+    log(f"Historique USA : {done} sociétés sur {len(members)} ({calls} requêtes)")
+    write_json("histo.json", {"date": datetime.date.today().isoformat(), "series": out})
 
 
 def main():
@@ -83,8 +114,11 @@ def main():
         if m:
             out["FR-" + lei] = {"symbol": symbol, "m": m}
     log(f"Historique des cours : {len(out)} sociétés sur {len(CAC20)} ({calls} requêtes)")
-    write_json("histo.json", {"date": datetime.date.today().isoformat(), "series": out})
+    prev = (read_json("histo.json", {}) or {}).get("series", {})
+    prev.update(out)
+    write_json("histo.json", {"date": datetime.date.today().isoformat(), "series": prev})
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    us_main() if "--us" in sys.argv else main()
