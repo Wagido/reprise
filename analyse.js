@@ -891,22 +891,53 @@ const Analyse = (() => {
   }
 
   // ---------- Partie 2 : le marché paie-t-il déjà la valeur créée ? ----------
+  // Verdict « Marché » : d'abord la VE / capitaux employés observée face à celle que justifie la rentabilité
+  // (ROCE / coût du capital, sans croissance), puis le PER face à la médiane du secteur en confirmation.
+  // Les flux actualisés ne sont qu'une information : trop sensibles aux hypothèses (banc d'essai historique).
+  // Médiane du marché (hors banques) de VE/CE observée ÷ VE/CE justifiée, chez les sociétés qui créent de la valeur :
+  // même les meilleures paient une croissance future, le repère est donc la place, pas 1×.
+  const relCache = {};
+  function marketRel(i) {
+    if (i in relCache) return relCache[i];
+    const a = [];
+    for (const c of state.companies) {
+      if (c.s === "finance") continue;
+      const f = figures(c, i);
+      if (ok(f.vae) && ok(f.vaeTh) && f.vaeTh > 0 && ok(f.spread) && f.spread >= 0) a.push(f.vae / f.vaeTh);
+    }
+    a.sort((x, y) => x - y);
+    return (relCache[i] = a.length >= 50 ? a[a.length >> 1] : null);
+  }
   function marketVerdict(c, f, i, st) {
     if (!ok(f.mcap)) return ["grey", "Pas de cours de Bourse disponible pour cette société : la question reste ouverte."];
     const fv = fairValue(c, f, i, st);
     const vals = [fv.sector, fv.dcf].filter(ok);
     const gap = vals.length ? f.mcap / (vals.reduce((x, y) => x + y, 0) / vals.length) - 1 : null;
-    const th = ok(f.vaeTh) ? ` (sans croissance, sa rentabilité justifierait ${X(f.vaeTh)})` : "";
-    const obs = ok(f.vae) ? `Le marché la valorise ${X(f.vae)} ses capitaux employés${th}` : "Le marché la valorise";
-    const g = ok(gap) ? ` ; cours ${gap <= 0 ? nf0.format(-gap * 100) + " % sous" : nf0.format(gap * 100) + " % au-dessus de"} la valeur estimée` : "";
-    if (!ok(f.spread)) return ["grey", obs + g + "."];
-    if (f.spread >= 0) {
-      if ((ok(f.vae) && ok(f.vaeTh) && f.vae < f.vaeTh * 0.8) || (ok(gap) && gap <= -0.2)) return ["green", `<b>Pas encore entièrement.</b> Elle crée de la valeur. ${obs}${g} : décote à expliquer (risque, déclin attendu) ou opportunité.`];
-      if (ok(f.vae) && ok(f.vaeTh) && f.vae > f.vaeTh * 1.5 || (ok(gap) && gap >= 0.2)) return ["red", `<b>Oui, et au-delà.</b> Elle crée de la valeur. ${obs}${g} : le prix intègre déjà une forte croissance.`];
-      return ["orange", `<b>Oui, à peu près.</b> Elle crée de la valeur. ${obs}${g}.`];
-    }
-    if (ok(f.vae) && f.vae > 1) return ["red", `<b>Le marché paie une valeur qu'elle ne crée pas aujourd'hui.</b> ${obs}${g} : il parie sur un redressement ou une forte croissance.`];
-    return ["orange", `<b>Non, et c'est cohérent :</b> elle détruit de la valeur. ${obs}${g}.`];
+    const perMed = st.per && st.per.sorted.length >= 5 ? st.per.median : null;
+    const perRel = ok(f.per) && ok(perMed) && perMed > 0 ? f.per / perMed : null;
+    const rel = ok(f.vae) && ok(f.vaeTh) && f.vaeTh > 0 ? f.vae / f.vaeTh : null;
+    const obs = ok(f.vae) ? `VE / capitaux employés ${X(f.vae)}${ok(f.vaeTh) && f.vaeTh > 0 ? ` pour ${X(f.vaeTh)} justifiés par la rentabilité` : ""}` : "VE / capitaux employés inconnue";
+    const per = ok(f.per) ? ` ; PER ${X(f.per)}${ok(perMed) ? ` (secteur ${X(perMed)})` : ""}` : ok(f.ni) && f.ni <= 0 ? " ; pas de PER (perte)" : "";
+    const info = ok(gap) ? ` Pour information, l'actualisation des flux et le multiple du secteur placent le cours ${gap <= 0 ? nf0.format(-gap * 100) + " % sous" : nf0.format(gap * 100) + " % au-dessus de"} leur valeur estimée.` : "";
+    if (!ok(f.spread) || !ok(f.vae)) return ["grey", obs + per + "." + info];
+    if (f.vae <= 0) return ["grey", `Valeur d'entreprise négative : la trésorerie déclarée dépasse la capitalisation (souvent une activité de financement consolidée, comme une banque captive). Le ratio n'est pas exploitable${per}.`];
+    let s, head;
+    const med = marketRel(i);
+    const place = ok(med) && ok(rel) && ok(f.spread) && f.spread >= 0 ? ` Elle cote ${X(rel)} son multiple justifié, contre ${X(med)} pour la médiane de la place.` : "";
+    if (f.spread >= 0 && ok(rel)) {
+      const r = rel / (med || 1.8);
+      if (r < 0.6) { s = "green"; head = "<b>Prix raisonnable :</b> elle crée de la valeur et le marché la paie nettement moins cher que les autres sociétés rentables."; }
+      else if (r > 1.5) { s = "red"; head = "<b>Prix élevé :</b> le marché paie sa rentabilité bien plus cher que la moyenne ; il parie sur une forte croissance."; }
+      else { s = "orange"; head = "<b>Prix dans la norme</b> de la place pour la valeur qu'elle crée."; }
+    } else if (f.vae > 1) { s = "red"; head = "<b>Prix élevé :</b> elle ne couvre pas son coût du capital et le marché la paie pourtant plus que ses capitaux employés ; il parie sur un redressement."; }
+    else { s = "orange"; head = "<b>Prix bas mais cohérent :</b> elle détruit de la valeur, le marché la paie moins que ses capitaux employés."; }
+    // Confirmation par le PER : un PER très éloigné du secteur tempère le feu d'un cran.
+    let conf = "";
+    const plain = (h) => h.replace(/^<b>[^<]*<\/b>\s*/, "");
+    if (s === "green" && (ok(f.ni) && f.ni <= 0 || ok(perRel) && perRel > 1.2)) { s = "orange"; head = "<b>Signaux partagés :</b> " + plain(head); conf = " Mais le PER, nettement au-dessus du secteur, ne confirme pas."; }
+    else if (s === "red" && ok(perRel) && perRel < 0.7) { s = "orange"; head = "<b>Signaux partagés :</b> " + plain(head); conf = " Mais le PER, nettement sous le secteur, tempère ce jugement."; }
+    else if (ok(perRel)) conf = perRel < 0.8 ? " Le PER, sous le secteur, va dans le même sens." : perRel > 1.2 ? " Le PER est au-dessus du secteur." : "";
+    return [s, `${head} ${obs}${per}.${place}${conf}${info}`];
   }
   function marketCard(c, f, i, st, mv) {
     const cur = esc(c.cur);
@@ -1331,7 +1362,11 @@ const Analyse = (() => {
     (solvabilité et liquidité).</p>
     <p><b>Puis, pour une société cotée, une seconde question : si elle crée de la valeur, le marché la paie-t-il déjà ?</b>
     Sa valeur d'entreprise devrait dépasser ses capitaux employés (sans croissance, VE / capitaux employés ≈ ROCE / CMPC). On compare
-    le prix de marché à cette référence, aux multiples du secteur et à la valeur par actualisation des flux de trésorerie disponibles.</p>
+    le multiple observé à ce multiple justifié, puis ce rapport à celui de la médiane de la place (même les sociétés les plus
+    rentables cotent au-dessus, le marché payant une croissance future) : quart le moins cher en vert, quart le plus cher en rouge.
+    Le PER face au secteur confirme ou tempère d'un cran. L'actualisation des flux n'est donnée qu'à titre d'information :
+    sur le banc d'essai historique (20 sociétés du CAC 40, 2021–2026), elle n'annonçait pas la performance qui suivait, alors que
+    le multiple observé rapporté au multiple justifié et le PER l'annonçaient en partie.</p>
     <p class="note">Formules alignées sur les fiches de synthèse du cours ICCF (HEC Paris / First Finance) : rentabilité économique
     = résultat d'exploitation × (1 − IS) / capitaux employés moyens (capitaux propres + dette nette, moyenne ouverture–clôture) ;
     dette nette = dettes financières + dettes de location (IFRS 16) − trésorerie − placements à court terme ; effet de levier avec un coût de la dette <b>après impôt</b>.</p>
@@ -1343,12 +1378,14 @@ const Analyse = (() => {
     params[name] = !!on;
     saveParams();
     for (const k of Object.keys(sectorCache)) delete sectorCache[k];
+    for (const k of Object.keys(relCache)) delete relCache[k];
   }
   function setParam(name, value) {
     const s = String(value ?? "").trim();
     const v = Number(s.replace(",", "."));
     params[name] = s === "" ? null : Number.isFinite(v) && v >= 0 ? v : params[name];
     saveParams();
+    for (const k of Object.keys(relCache)) delete relCache[k];
   }
   // Verdicts des 4 étapes (mêmes règles que la synthèse de la fiche), pour le tableau de bord.
   function stepColors(c, i) {
