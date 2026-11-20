@@ -55,6 +55,12 @@ def fetch(symbol, key, max_age=MAX_AGE, folder=DIR):
     if not key:
         return None, False
     d = http_json(URL.format(symbol=urllib.parse.quote(symbol), key=key), {})
+    for wait in (60, 120):   # limite par seconde (« spreading out ») : on patiente ; limite par jour : on s'arrête
+        msg = d.get("Note") or d.get("Information") or ""
+        if not msg or "per day" in msg:
+            break
+        time.sleep(wait)
+        d = http_json(URL.format(symbol=urllib.parse.quote(symbol), key=key), {})
     if "Note" in d or "Information" in d:
         raise RuntimeError((d.get("Note") or d.get("Information"))[:160])
     rows = d.get("Monthly Adjusted Time Series") or {}
@@ -90,7 +96,7 @@ def us_main():
             continue
         if called:
             calls += 1
-            time.sleep(13)
+            time.sleep(15)
         if m:
             out[c["id"]] = {"symbol": symbol, "m": [x for x in m if x[0] >= "2019-01"]}
             done += 1
@@ -112,7 +118,7 @@ def main():
             break
         if called:
             calls += 1
-            time.sleep(13)   # 5 requêtes par minute au plus
+            time.sleep(15)   # 5 requêtes par minute au plus
         if m:
             out["FR-" + lei] = {"symbol": symbol, "m": m}
     log(f"Historique des cours : {len(out)} sociétés sur {len(CAC20)} ({calls} requêtes)")
