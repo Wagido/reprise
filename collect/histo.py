@@ -74,12 +74,47 @@ def fetch(symbol, key, max_age=MAX_AGE, folder=DIR):
     return m, True
 
 
+TIINGO = "https://api.tiingo.com/tiingo/daily/{symbol}/prices?startDate=2019-01-01&resampleFreq=monthly&token={key}"
+TIINGO_PER_RUN = 48   # offre gratuite : 50 requêtes par heure, 1 000 par jour, 500 actions par mois
+
+
+def fetch_tiingo(symbol, key):
+    """Cours mensuels ajustés (dividendes et divisions) depuis 2019. Renvoie (série, appel fait)."""
+    path = os.path.join(DIR_US, symbol + ".json")
+    if os.path.exists(path) and time.time() - os.path.getmtime(path) < 365 * 86400:
+        with open(path) as f:
+            return json.load(f), False
+    if not key:
+        return None, False
+    try:
+        rows = http_json(TIINGO.format(symbol=urllib.parse.quote(symbol.replace(".", "-")), key=key), {})
+    except Exception as e:
+        msg = str(e)
+        if "429" in msg or "limit" in msg.lower():
+            raise RuntimeError("quota Tiingo atteint")
+        log(f"  {symbol} : {msg[:120]}")
+        return None, True
+    if isinstance(rows, dict):   # message d'erreur (quota, symbole inconnu)
+        detail = str(rows.get("detail") or rows)[:160]
+        if "limit" in detail.lower() or "exceed" in detail.lower():
+            raise RuntimeError(detail)
+        log(f"  {symbol} : {detail}")
+        return None, True
+    m = sorted([r["date"][:7], float(r["adjClose"])] for r in rows if r.get("adjClose"))
+    if not m:
+        return None, True
+    os.makedirs(DIR_US, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(m, f)
+    return m, True
+
+
 def us_main():
-    """États-Unis : membres du S&P 500, par ordre de taille, 24 par jour avec la seconde clé
-    (ALPHAVANTAGE_API_KEY_2), gardés un an en cache : la rotation fait le tour en trois semaines."""
-    key = os.environ.get("ALPHAVANTAGE_API_KEY_2")
+    """États-Unis : membres du S&P 500, par ordre de taille, gardés un an en cache.
+    Tiingo (TIINGO_API_KEY, 48 par passage, workflow horaire) ; à défaut Alpha Vantage (seconde clé, 24 par jour)."""
+    tkey = os.environ.get("TIINGO_API_KEY")
+    key = None if tkey else os.environ.get("ALPHAVANTAGE_API_KEY_2")
     d = read_json("companies.json", {"companies": []})
-    ys = (d.get("meta") or {}).get("years") or []
     def size(c):
         r = [v for v in (c["v"].get("revenue") or []) if v is not None]
         return -(r[-1] if r else 0)
@@ -89,14 +124,17 @@ def us_main():
     for c in members:
         symbol = c["t"].replace("-", ".")
         try:
-            m, called = fetch(symbol, key if calls < US_PER_RUN else None, max_age=365, folder=DIR_US)
+            if tkey:
+                m, called = fetch_tiingo(symbol, tkey if calls < TIINGO_PER_RUN else None)
+            else:
+                m, called = fetch(symbol, key if calls < US_PER_RUN else None, max_age=365, folder=DIR_US)
         except Exception as e:
             log(f"Historique USA : arrêt sur {symbol} ({e})")
-            key = None
-            continue
+            tkey = key = None
+            m, called = fetch_tiingo(symbol, None)
         if called:
             calls += 1
-            time.sleep(15)
+            time.sleep(1.5 if tkey else 15)
         if m:
             out[c["id"]] = {"symbol": symbol, "m": [x for x in m if x[0] >= "2019-01"]}
             done += 1

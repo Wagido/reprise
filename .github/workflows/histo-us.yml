@@ -1,11 +1,11 @@
-# Banc d'essai : historique des cours du S&P 500, 24 sociétés par jour avec la seconde clé Alpha Vantage.
+# Banc d'essai : historique des cours du S&P 500 (Tiingo, 48 sociétés par heure ; à défaut Alpha Vantage, seconde clé).
 # Machine et heure distinctes de la collecte principale (dont les cours de Paris utilisent la première clé).
 # Les séries restent dans le cache GitHub « histo-us- » ; la collecte quotidienne les relit et les publie.
 name: Historique USA
 
 on:
   schedule:
-    - cron: "41 15 * * *"
+    - cron: "23 * * * *"   # toutes les heures (Tiingo : 50 requêtes par heure) ; ne fait plus rien une fois le cache rempli
   workflow_dispatch:
 
 permissions:
@@ -33,8 +33,9 @@ jobs:
         run: |
           mkdir -p data
           curl -fsSL --retry 3 https://wagido.github.io/reprise/data/companies.json -o data/companies.json
-      - name: Cours mensuels (24 sociétés)
+      - name: Cours mensuels (48 sociétés par heure)
         env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           ALPHAVANTAGE_API_KEY_2: ${{ secrets.ALPHAVANTAGE_API_KEY_2 }}
         run: |
           python collect/histo.py --us
