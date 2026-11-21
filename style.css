@@ -673,3 +673,13 @@ details.vstep .st-v { font-size: 13.5px; color: var(--muted); line-height: 1.45;
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .hidden-hits{background:#3a2f17;border-color:#6b5525}}
 :root[data-theme="dark"] .hidden-hits{background:#3a2f17;border-color:#6b5525}
 .cov-w{overflow-x:auto}
+
+/* Historique des valorisations */
+.vh td,.vh th{white-space:nowrap}
+.vh-chart{width:100%;max-width:420px;height:auto;display:block;margin:6px 0 0}
+.vh-leg{font-size:.8rem;color:var(--muted,#666);margin:2px 0 6px}
+.vh-k{display:inline-block;width:16px;height:0;border-top:2px solid #2f6db5;vertical-align:middle;margin:0 4px 0 8px}
+.vh-k.th{border-top:2px dashed #8a96a6}
+.vh{font-size:.82rem}
+.vh td,.vh th{padding:4px 6px}
+.vh td:first-child{white-space:normal;min-width:110px}

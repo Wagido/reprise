@@ -1127,6 +1127,11 @@ async function init() {
   $("year").innerHTML = [...meta.years].reverse().map((y) => `<option>${y}</option>`).join("");
   $("year").value = String(defaultYear());
   loadFilters();
+  // Cours mensuels historiques (banc d'essai) : historique des valorisations dans la fiche. Chargé sans bloquer.
+  fetch("data/histo.json").then((r) => (r.ok ? r.json() : null)).then((h) => {
+    state.histo = (h && h.series) || {};
+    if (state.detailC && state.view === "list") openDetail(state.detailC);
+  }).catch(() => { state.histo = {}; });
   const tb = $("themeBtn");
   const setIcon = () => { tb.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; };
   setIcon();

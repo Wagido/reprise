@@ -601,7 +601,7 @@ const Analyse = (() => {
         <div class="vbar-mark price" style="left:${x(f.mcap)}%"><span>Cours<br><b>${M(f.mcap)}</b></span></div>
         <div class="vbar-mark fair" style="left:${x(fair)}%"><span>Valeur estimée<br><b>${M(fair)}</b></span></div>
       </div>
-      <p class="vbar-txt">${light(zone[0])}<b>Le cours est ${zone[1]}.</b> <small>Moyenne de la valeur par le multiple du secteur (${M(fv.sector)}) et par les flux actualisés (${M(fv.dcf)}), en M ${esc(c.cur)}.</small></p>
+      <p class="vbar-txt"><b>Pour information, le cours est ${zone[1]}.</b> <small>Moyenne de la valeur par le multiple du secteur (${M(fv.sector)}) et par les flux actualisés (${M(fv.dcf)}), en M ${esc(c.cur)}.</small></p>
     </div>`;
   }
 
@@ -939,13 +939,62 @@ const Analyse = (() => {
     else if (ok(perRel)) conf = perRel < 0.8 ? " Le PER, sous le secteur, va dans le même sens." : perRel > 1.2 ? " Le PER est au-dessus du secteur." : "";
     return [s, `${head} ${obs}${per}.${place}${conf}${info}`];
   }
+  // Historique des valorisations : cours de clôture de chaque exercice (data/histo.json) × nombre d'actions
+  // de l'exercice (résultat net / BPA), puis les mêmes ratios que pour l'exercice courant.
+  function valHistory(c) {
+    const H = state.histo;
+    if (!H) return "";
+    const s = H[c.id];
+    if (!s || !c.px || !c.px[1]) return `<p class="note">Historique des valorisations : pas encore de série de cours pour cette société
+      (disponible pour 20 sociétés du CAC 40 ; le S&P 500 arrive au fil de la collecte).</p>`;
+    const ys = state.meta.years, keep = c.px.slice();
+    const fyEnd = Object.values(c.fy || {}).pop();
+    const mm = fyEnd ? fyEnd.slice(5, 7) : "12";
+    const price = (ym) => { let v = null; for (const [d, x] of s.m) if (d <= ym) v = x; return v; };
+    const rows = [];
+    ys.forEach((y, j) => {
+      const ni = val(c, "net_income", j, true), eps = val(c, "eps", j, true);
+      const p = price(`${y}-${mm}`);
+      if (!p || !ok(val(c, "revenue", j, true))) return;
+      let sh = ok(ni) && ok(eps) && Math.abs(eps) > 1e-6 && (ni > 0) === (eps > 0) ? ni * 1e6 / eps : null;
+      if (!ok(sh) || sh < keep[1] * 0.5 || sh > keep[1] * 2) sh = keep[1];
+      c.px = [p, sh];
+      const g = figures(c, j);
+      rows.push({ y, mcap: g.mcap, per: g.per, evx: g.evEbitda, vae: g.vae, th: g.vaeTh });
+    });
+    c.px = keep;
+    if (rows.length < 2) return "";
+    const td = (v, fmt) => `<td>${ok(v) ? fmt(v) : "—"}</td>`;
+    const pts = rows.filter((r) => ok(r.vae));
+    const vmax = Math.max(1, ...pts.map((r) => r.vae), ...pts.map((r) => r.th).filter(ok)) * 1.1;
+    const W = 300, Hh = 90, x = (k) => 20 + k * (W - 40) / Math.max(1, rows.length - 1), yv = (v) => Hh - 14 - (v / vmax) * (Hh - 24);
+    const line = (key, col, dash) => {
+      const p = rows.map((r, k) => (ok(r[key]) ? `${x(k).toFixed(1)},${yv(r[key]).toFixed(1)}` : null)).filter(Boolean);
+      return p.length > 1 ? `<polyline points="${p.join(" ")}" fill="none" stroke="${col}" stroke-width="2"${dash ? ' stroke-dasharray="4 3"' : ""}/>` : "";
+    };
+    const svg = `<svg class="vh-chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="VE / capitaux employés observée et justifiée">
+      ${line("th", "#8a96a6", true)}${line("vae", "#2f6db5", false)}
+      ${rows.map((r, k) => `<text x="${x(k).toFixed(1)}" y="${Hh - 2}" text-anchor="middle" font-size="9" fill="currentColor">${r.y}</text>`).join("")}</svg>
+      <p class="vh-leg"><span class="vh-k obs"></span>VE / capitaux employés observée <span class="vh-k th"></span>justifiée par la rentabilité (sans croissance)</p>`;
+    return `<h4 class="sub">Historique des valorisations</h4>
+      <div class="tablewrap"><table class="stmt vh"><thead><tr><th></th>${rows.map((r) => `<th>${r.y}</th>`).join("")}</tr></thead><tbody>
+        <tr><td>Capitalisation (M ${esc(c.cur)})</td>${rows.map((r) => td(r.mcap, M)).join("")}</tr>
+        <tr><td>PER</td>${rows.map((r) => td(r.per, X)).join("")}</tr>
+        <tr><td>VE / EBE</td>${rows.map((r) => td(r.evx, X)).join("")}</tr>
+        <tr><td>VE / capitaux employés</td>${rows.map((r) => td(r.vae, X)).join("")}</tr>
+        <tr><td>… justifiée (ROCE / CMPC)</td>${rows.map((r) => td(r.th, X)).join("")}</tr>
+      </tbody></table></div>${svg}
+      <p class="note">Cours de clôture de chaque exercice (fin ${mm === "12" ? "décembre" : "du mois " + mm}), ajustés des dividendes versés depuis :
+        les capitalisations anciennes sont donc un peu sous-estimées (de 2 à 3 % par année d'écart). Nombre d'actions de l'exercice = résultat net / BPA ;
+        coût du capital d'aujourd'hui pour la valeur justifiée.</p>`;
+  }
   function marketCard(c, f, i, st, mv) {
     const cur = esc(c.cur);
     return card("Le prix de marché face à la valeur créée", "", `<div class="kpis">
         ${kpi("VE / capitaux employés", X(f.vae), `<small class="bench">${ok(f.vaeTh) ? `justifié sans croissance : ROCE / CMPC = ${X(f.vaeTh)}` : "valeur de marché / capitaux employés"}</small>` + bench(st, "vae", f.vae, X, false))}
         ${kpi(`Valeur créée selon le marché (M ${cur})`, `<span class="${ok(f.mva) ? (f.mva >= 0 ? "pos" : "neg") : ""}">${M(f.mva)}</span>`, `<small class="bench">VE − capitaux employés</small>`)}
         ${kpi("Capitalisation / capitaux propres (PBR)", X(f.pbr), `<small class="bench">${ok(f.roe) && f.kE > 0 ? `justifié sans croissance : ROE / coût des fonds propres = ${X(f.roe / f.kE)}` : ""}</small>`)}
-      </div>${valueBar(c, f, fairValue(c, f, i, st))}`,
+      </div>${valueBar(c, f, fairValue(c, f, i, st))}${valHistory(c)}`,
       `Si l'entreprise crée de la valeur, sa valeur d'entreprise doit dépasser ses capitaux employés : sans croissance, VE / capitaux employés ≈ ROCE / CMPC,
        et côté actionnaire capitalisation / capitaux propres ≈ ROE / coût des fonds propres. Un multiple observé bien supérieur signifie que le marché paie
        déjà une croissance future ; bien inférieur, qu'il doute de la pérennité de la rentabilité, ou qu'il y a une opportunité.`);
