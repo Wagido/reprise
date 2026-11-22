@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: cache/prices/histo_us
           key: histo-us-${{ github.run_id }}
@@ -44,5 +44,11 @@ jobs:
             python collect/histo.py --us 2>&1 | tee /tmp/h.log
             ls cache/prices/histo_us | wc -l
             grep -q "(0 requêtes)" /tmp/h.log && break
-            [ $k -lt 5 ] && sleep 3660
+            if [ $k -lt 5 ]; then sleep 3660; fi
           done
+      # Enregistré même si une étape a échoué ou si la tâche est annulée : rien de ce qui est téléchargé ne se perd.
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: cache/prices/histo_us
+          key: histo-us-${{ github.run_id }}
