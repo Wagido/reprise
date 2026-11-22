@@ -41,7 +41,7 @@ jobs:
         # s'arrête dès qu'un passage n'a plus rien à télécharger.
         run: |
           for k in 1 2 3 4 5; do
-            python collect/histo.py --us | tee /tmp/h.log
+            python collect/histo.py --us 2>&1 | tee /tmp/h.log
             ls cache/prices/histo_us | wc -l
             grep -q "(0 requêtes)" /tmp/h.log && break
             [ $k -lt 5 ] && sleep 3660
