@@ -18,7 +18,7 @@ concurrency:
 jobs:
   histo:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +37,12 @@ jobs:
         env:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           ALPHAVANTAGE_API_KEY_2: ${{ secrets.ALPHAVANTAGE_API_KEY_2 }}
+        # Jusqu'à 5 passages de 48 requêtes espacés d'une heure (limite Tiingo : 50 par heure) ;
+        # s'arrête dès qu'un passage n'a plus rien à télécharger.
         run: |
-          python collect/histo.py --us
-          ls cache/prices/histo_us | wc -l
+          for k in 1 2 3 4 5; do
+            python collect/histo.py --us | tee /tmp/h.log
+            ls cache/prices/histo_us | wc -l
+            grep -q "(0 requêtes)" /tmp/h.log && break
+            [ $k -lt 5 ] && sleep 3660
+          done
