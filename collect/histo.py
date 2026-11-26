@@ -142,6 +142,60 @@ def us_main():
     write_json("histo.json", {"date": datetime.date.today().isoformat(), "series": out})
 
 
+# France hors CAC 40 du banc d'essai : seconde clé Alpha Vantage (libre depuis que Tiingo sert les USA),
+# 24 sociétés par jour, rangées dans le même cache que les séries américaines (workflow histo-us.yml).
+DIR_FR = os.path.join(DIR_US, "fr")
+FIRST = ("NRJ GROUP",)   # sociétés demandées, servies en premier
+
+
+def fr_main():
+    from prices import fr_tickers
+    key = os.environ.get("ALPHAVANTAGE_API_KEY_2")
+    d = read_json("companies.json", {"companies": []})
+    done_cac = {"FR-" + lei for lei, _ in CAC20}
+    fr = [c for c in d["companies"] if c["c"] == "FR" and c["id"] not in done_cac]
+    def rank(c):
+        r = [v for v in (c["v"].get("revenue") or []) if v is not None]
+        return (c["n"] not in FIRST, not c.get("px"), -(r[-1] if r else 0))
+    fr.sort(key=rank)
+    tickers = {}
+    if key:
+        missing = [c for c in fr if not os.path.exists(os.path.join(DIR_FR, c["id"] + ".json"))]
+        if missing:
+            tickers = fr_tickers([c["id"][3:] for c in missing])
+    out = (read_json("histo.json", {}) or {}).get("series", {})
+    calls = done = 0
+    for c in fr:
+        path = os.path.join(DIR_FR, c["id"] + ".json")
+        m = None
+        if os.path.exists(path):
+            with open(path) as f:
+                m = json.load(f)
+        elif key and calls < US_PER_RUN and c["id"][3:] in tickers:
+            symbol = tickers[c["id"][3:]] + ".PAR"
+            try:
+                m, called = fetch(symbol, key, max_age=365, folder=DIR_FR)
+            except Exception as e:
+                log(f"Historique France : arrêt sur {symbol} ({e})")
+                key = None
+                continue
+            calls += 1
+            time.sleep(15)
+            # Rangé sous l'identifiant de la société : la relecture n'a pas besoin des tickers.
+            src = os.path.join(DIR_FR, symbol + ".json")
+            if os.path.exists(src):
+                os.replace(src, path)
+            elif not m:
+                os.makedirs(DIR_FR, exist_ok=True)
+                with open(path, "w") as f:
+                    json.dump([], f)   # pas de série : on ne redemande pas
+        if m:
+            out[c["id"]] = {"symbol": c["id"], "m": [x for x in m if x[0] >= "2016-01"]}
+            done += 1
+    log(f"Historique France : {done} sociétés sur {len(fr)} ({calls} requêtes)")
+    write_json("histo.json", {"date": datetime.date.today().isoformat(), "series": out})
+
+
 def main():
     key = os.environ.get("ALPHAVANTAGE_API_KEY")
     out, calls = {}, 0
@@ -167,4 +221,4 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    us_main() if "--us" in sys.argv else main()
+    fr_main() if "--fr" in sys.argv else us_main() if "--us" in sys.argv else main()

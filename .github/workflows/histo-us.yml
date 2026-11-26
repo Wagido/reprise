@@ -33,10 +33,13 @@ jobs:
         run: |
           mkdir -p data
           curl -fsSL --retry 3 https://wagido.github.io/reprise/data/companies.json -o data/companies.json
+      - name: Cours mensuels France (seconde clé Alpha Vantage, 24 sociétés par jour)
+        env:
+          ALPHAVANTAGE_API_KEY_2: ${{ secrets.ALPHAVANTAGE_API_KEY_2 }}
+        run: python collect/histo.py --fr || true
       - name: Cours mensuels (48 sociétés par heure)
         env:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
-          ALPHAVANTAGE_API_KEY_2: ${{ secrets.ALPHAVANTAGE_API_KEY_2 }}
         # Jusqu'à 5 passages de 48 requêtes espacés d'une heure (limite Tiingo : 50 par heure) ;
         # s'arrête dès qu'un passage n'a plus rien à télécharger.
         run: |

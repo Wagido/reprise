@@ -69,6 +69,8 @@ jobs:
           restore-keys: histo-us-
       - name: Historique des cours USA (relecture du cache)
         run: python collect/histo.py --us || true
+      - name: Historique des cours France (relecture du cache)
+        run: python collect/histo.py --fr || true
       - name: Site
         run: |
           mkdir -p _site/data
