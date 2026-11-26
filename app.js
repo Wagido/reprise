@@ -777,7 +777,9 @@ function openDetail(c, yearIdx, tab) {
       ${c.src ? ` · <a href="${esc(c.src)}" target="_blank" rel="noopener">source officielle</a>` : ""}
       ${c.est && c.est.length ? ` · <span class="est-i" tabindex="0" title="Estimé à partir d'étiquettes propres à la société (à vérifier dans la source) : ${esc(c.est.map((f) => (state.meta.fields[f] || {}).label || f).join(", ").toLowerCase())}.">≈ ${c.est.length} poste${c.est.length > 1 ? "s" : ""} estimé${c.est.length > 1 ? "s" : ""}</span>` : ""}</p>
     ${c.sf !== "SIC" && c.sd ? `<details class="desc-d"><summary>${esc(c.sd.length > 110 ? c.sd.slice(0, 110).replace(/\s+\S*$/, "") + "…" : c.sd)}</summary>${c.sd.length > 110 ? `<p class="desc">${esc(c.sd)}</p>` : ""}</details>` : ""}
-    <div class="chips fiche-bar">${tabs}<span class="sep"></span>${chips}</div>
+    <div class="chips fiche-bar">${tabs}<span class="sep"></span>${chips}
+      <span class="fiche-tools"><button class="chip" data-allopen aria-pressed="${!!state.allOpen}">${state.allOpen ? "Tout replier" : "Tout déplier"}</button>
+      <button class="chip" data-wide aria-pressed="${document.body.classList.contains("fiche-large")}">${document.body.classList.contains("fiche-large") ? "⤡ Réduire" : "⤢ Plein écran"}</button></span></div>
     ${tab === "analyse" ? Analyse.render(c, i) : comptes}`;
   $("detailBody").onchange = (e) => {
     if (e.target.id === "ficheYear") { openDetail(c, Number(e.target.value), tab); return; }
@@ -804,15 +806,35 @@ function openDetail(c, yearIdx, tab) {
     }
     const b = e.target.closest("button.chip");
     if (!b) return;
+    if (b.hasAttribute("data-wide")) {
+      const on = document.body.classList.toggle("fiche-large");
+      b.setAttribute("aria-pressed", on); b.textContent = on ? "⤡ Réduire" : "⤢ Plein écran";
+      return;
+    }
+    if (b.hasAttribute("data-allopen")) {
+      state.allOpen = !state.allOpen;
+      b.setAttribute("aria-pressed", state.allOpen); b.textContent = state.allOpen ? "Tout replier" : "Tout déplier";
+      applyAllOpen();
+      return;
+    }
     const scroll = $("detail").querySelector(".detail-inner").scrollTop;
     if (b.dataset.resetRates) { Analyse.setParam("rf", ""); Analyse.setParam("prm", ""); openDetail(c, i, tab); }
     else if (b.dataset.tab) openDetail(c, i, b.dataset.tab);
     else openDetail(c, Number(b.dataset.y), tab);
     $("detail").querySelector(".detail-inner").scrollTop = scroll;
   };
+  if (state.allOpen) applyAllOpen();
   if ($("detail").hidden) {
     $("detail").hidden = false;
     $("detail").querySelector(".detail-inner").scrollTop = 0;
+  }
+}
+// « Tout déplier » : toutes les rubriques de la fiche ouvertes à la fois (on retire l'ouverture exclusive).
+function applyAllOpen() {
+  for (const d of $("detailBody").querySelectorAll("details")) {
+    if (d.classList.contains("desc-d") || d.classList.contains("method")) continue;
+    if (state.allOpen) { d.removeAttribute("name"); d.open = true; }
+    else { d.open = false; if (d.classList.contains("step")) d.setAttribute("name", "etapes"); }
   }
 }
 
@@ -886,6 +908,7 @@ function showMethodPanel() {
   $("detail").hidden = false;
 }
 function closeDetail() {
+  document.body.classList.remove("fiche-large");
   if (splitMode()) showMethodPanel(); else $("detail").hidden = true;
 }
 function syncHeader() {
