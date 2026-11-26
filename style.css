@@ -683,3 +683,51 @@ details.vstep .st-v { font-size: 13.5px; color: var(--muted); line-height: 1.45;
 .vh{font-size:.82rem}
 .vh td,.vh th{padding:4px 6px}
 .vh td:first-child{white-space:normal;min-width:110px}
+
+/* ---------- Fiche : bloc du cours et tableau de synthèse ---------- */
+.pxb { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 10px 12px 6px; margin: 4px 0 12px; }
+.px-head { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: flex-end; }
+.px-head small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.px-main b { font-size: 24px; font-weight: 700; line-height: 1.15; }
+.px-i b { font-size: 15px; font-weight: 600; }
+.px-i b small { display: inline; font-size: 11.5px; }
+.px-chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.px-grid { stroke: var(--line); stroke-width: 1; }
+.px-ax { font-size: 10px; fill: var(--muted); }
+.px-note { font-size: 11px; color: var(--muted); margin: 2px 0 2px; }
+.pos { color: #1e8a4c; } .neg { color: #c8402f; }
+
+.synth { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); overflow: hidden; margin: 6px 0 8px; }
+.synth-g { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+  padding: 8px 12px 4px; background: var(--bg); border-top: 1px solid var(--line); }
+.synth-g:first-child { border-top: 0; }
+.synth-g small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.synth details.step.srow { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 0 12px; background: none; }
+.synth .synth-g + details.step.srow { border-top: 0; }
+.synth details.srow > summary.srow-h { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 132px 14px; gap: 10px;
+  align-items: center; padding: 8px 0; margin: 0; cursor: pointer; }
+.synth details.srow > summary.srow-h:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.srow-t { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.srow-t .num { width: 22px; height: 22px; font-size: 11.5px; flex: 0 0 auto; }
+.srow-t .light { margin: 0; flex: 0 0 auto; }
+.srow-l { display: flex; flex-direction: column; min-width: 0; }
+.srow-l b { font-size: 14.5px; font-weight: 600; }
+.srow-v { font-size: 12.5px; color: var(--muted); }
+.srow.green .srow-v { color: #1e8a4c; } .srow.orange .srow-v { color: #b8741a; } .srow.red .srow-v { color: #c8402f; }
+.srow-n { display: flex; flex-direction: column; min-width: 0; }
+.srow-n b { font-size: 16px; font-weight: 700; white-space: nowrap; }
+.srow-n b small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.srow-n > small { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.srow-s .spk { width: 132px; height: 30px; display: block; }
+.srow-s .cube-y { display: block; font-size: 10px; color: var(--muted); text-align: right; }
+.synth details.srow .open-hint { margin: 0; }
+.synth details.srow .open-hint::after { content: "▾"; }
+.synth details.srow[open] .open-hint::after { content: "▴"; }
+.synth details.srow[open] { background: var(--bg); }
+.srow-full { font-size: 13.5px; line-height: 1.5; margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--line); background: var(--panel); }
+.srow.green .srow-full { border-left-color: #1e8a4c; } .srow.orange .srow-full { border-left-color: #d9922e; } .srow.red .srow-full { border-left-color: #c8402f; }
+@media (max-width: 640px) {
+  .synth details.srow > summary.srow-h { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 14px; }
+  .srow-s { display: none; }
+  .px-main b { font-size: 20px; }
+}

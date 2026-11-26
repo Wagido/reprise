@@ -560,13 +560,37 @@ const Analyse = (() => {
   // Chaque étape est repliable : on lit d'abord le résumé, on ouvre le détail au besoin.
   // Une ligne repliable. Si la fiche a un verdict pour n (étapes 1 à 4, A = actionnaire, P = prêteur,
   // € = marché), l'en-tête montre le feu et la phrase de verdict : synthèse et détail ne font qu'un.
-  let curV = null;
+  let curV = null, curT = null;
   function step(n, title, sub, body) {
     const v = curV && curV[n];
+    const t = curT && curT[n];
+    if (v && t) {
+      return `<details class="step srow ${v[0] || "grey"}" data-n="${n}" name="etapes"><summary class="srow-h">
+        <span class="srow-t"><span class="num">${n}</span>${light(v[0])}<span class="srow-l"><b>${t.title}</b><span class="srow-v">${shortVerdict(n, v[0], v[1])}</span></span></span>
+        <span class="srow-n"><b>${t.big}</b><small>${t.sub}</small></span>
+        <span class="srow-s">${t.viz}</span><span class="open-hint"></span></summary>
+        <p class="srow-full">${v[1]}</p>${body}</details>`;
+    }
     const head = v
       ? `<span class="num">${n}</span>${light(v[0])}<span class="st-t"><b>${title}</b><span class="st-v">${v[1]}</span></span>`
       : `<span class="num">${n}</span>${title}<small>${sub}</small>`;
     return `<details class="step${v ? " vstep" : ""}" data-n="${n}" name="etapes"><summary class="step-h">${head}<span class="open-hint">détail</span></summary>${body}</details>`;
+  }
+
+
+  // Verdict en quelques mots pour le tableau de synthèse (la phrase complète s'affiche en dépliant la ligne).
+  const SHORT = {
+    1: { green: "supérieures au secteur", orange: "à surveiller", red: "faibles ou en recul" },
+    2: { green: "maîtrisés", orange: "BFR ou actif qui s'alourdit", red: "à surveiller" },
+    3: { green: "sain", orange: "à surveiller", red: "endettement lourd" },
+    4: { green: "au-dessus du coût du capital", orange: "proche du coût du capital", red: "sous le coût du capital" },
+  };
+  function shortVerdict(n, s, text) {
+    if (s === "grey" || !s) return "non évaluable";
+    if (SHORT[n]) return SHORT[n][s];
+    const b = /^<b>([^<]*)<\/b>/.exec(text);
+    if (b) return b[1].replace(/\s*:\s*$/, "");
+    return text.replace(/<[^>]+>/g, "").split(/\s*[:.]/)[0];
   }
 
   // Valeur estimée des capitaux propres : multiple sectoriel et flux actualisés (même méthode que le stock picking).
@@ -1309,7 +1333,7 @@ const Analyse = (() => {
       ${ok(ref) ? `<line x1="2" x2="148" y1="${y(ref).toFixed(1)}" y2="${y(ref).toFixed(1)}" class="spk-ref"><title>repère ${fmt(ref)}</title></line>` : ""}
       <polyline points="${line}" class="spk-l"/><circle cx="${x(lk).toFixed(1)}" cy="${y(lv).toFixed(1)}" r="3.2" fill="${COLOR[state] || COLOR.grey}"/></svg>`;
   }
-  function cubes(c, f, i, st, V, mv) {
+  function tileData(c, f, i, st, V, mv) {
     const ys = state.meta.years, from = Math.max(0, i - 5);
     const hist = (g) => ys.slice(from, i + 1).map((_, k) => { const x = figures(c, from + k); return x && ok(x.rev) ? g(x) : null; });
     const med = (k) => st[k] && ok(st[k].median) ? st[k].median : null;
@@ -1330,13 +1354,14 @@ const Analyse = (() => {
       [4, "Rentabilité", rows[4], `${P(f.roe)} <small>vs ${P(f.kE)}</small>`, `${gloss("ROE")} vs ${gloss("coût des fonds propres")}`, hist((x) => x.roe), f.kE, P, V.rows[3][3]],
       ["€", "Marché", mv[0], ok(f.vae) ? `${X(f.vae)} <small>vs ${X(f.vaeTh)}</small>` : "—", ok(f.vae) ? gloss("VE / capitaux employés") : "pas de cours", null, null, X, mv[1].replace(/<[^>]+>/g, "")],
     ];
-    return `<div class="cubes">${tiles.map(([n, t, s, big, sub, h, ref, fmt, tip]) => `
-      <button class="cube ${s || "grey"}" data-open="${n}" title="${esc(tip || "")} — cliquer pour le détail">
-        <span class="cube-h"><span class="num">${n}</span>${light(s || "grey")}<span>${t}</span></span>
-        <b class="cube-v">${big}</b><span class="cube-s">${sub}</span>
-        ${h ? spark(h, ref, s, fmt) + (h.filter(ok).length >= 2 ? `<span class="cube-y">${ys[from + h.findIndex(ok)]}–${ys[i]}</span>` : "") : n === "€" && ok(f.vae) && ok(f.vaeTh) ? vaeBar(f.vae, f.vaeTh, s) : ""}
-      </button>`).join("")}</div>
-      <p class="note cubes-note">Courbes : les derniers exercices ; pointillé : le repère (coût du capital, médiane du secteur, dette nette / EBE de 3×, flux nul). Cliquer une vignette pour le détail.</p>`;
+    const out = {};
+    const titles = { A: "Création de valeur", P: "Solvabilité", 1: "Marges", 2: "Investissements", 3: "Financement", 4: "Rentabilité", "€": "Prix de marché" };
+    for (const [n, , s, big, sub, h, ref, fmt] of tiles) {
+      const span = h && h.filter(ok).length >= 2 ? `<span class="cube-y">${ys[from + h.findIndex(ok)]}–${ys[i]}</span>` : "";
+      const viz = h ? spark(h, ref, s, fmt) + span : n === "€" && ok(f.vae) && ok(f.vaeTh) ? vaeBar(f.vae, f.vaeTh, s) : "";
+      out[n] = { title: titles[n], big, sub, viz };
+    }
+    return out;
   }
   // Deux barres : repère (gris) et valeur (couleur du feu). Partagé avec la fiche PME.
   function miniBars(v, ref, s, refLabel, valLabel) {
@@ -1347,7 +1372,58 @@ const Analyse = (() => {
   function vaeBar(obs, th, s) {
     const hi = Math.max(obs, th) * 1.1, w = (v) => Math.max(2, v / hi * 142);
     return `<svg class="spk" viewBox="0 0 150 40"><rect x="4" y="6" width="${w(th).toFixed(1)}" height="11" rx="2" fill="#b9c3cf"><title>justifié ${X(th)}</title></rect>
-      <rect x="4" y="22" width="${w(obs).toFixed(1)}" height="11" rx="2" fill="${COLOR[s] || COLOR.grey}"><title>observé ${X(obs)}</title></rect></svg><span class="cube-y">gris : justifié · couleur : marché</span>`;
+      <rect x="4" y="22" width="${w(obs).toFixed(1)}" height="11" rx="2" fill="${COLOR[s] || COLOR.grey}"><title>observé ${X(obs)}</title></rect></svg><span class="cube-y">gris : justifié · couleur : cours</span>`;
+  }
+
+
+  // Cours de Bourse en tête de fiche : dernier cours, performances, capitalisation, et courbe mensuelle
+  // (cours ajustés des dividendes, data/histo.json : CAC 40 et S&P 500 pour l'instant).
+  function priceBlock(c, f) {
+    if (!c.px || !c.px[0]) return "";
+    const sym = c.c === "US" ? "$" : "€";
+    const fmtPx = (v) => (v >= 1000 ? nf0.format(v) : nf1.format(v)) + " " + sym;
+    const pd = state.meta.price_date && state.meta.price_date[c.c];
+    const s = state.histo && state.histo[c.id];
+    const all = s ? s.m.filter((x) => ok(x[1]) && x[1] > 0) : [];
+    const perf5 = all.length > 60 ? all[all.length - 1][1] / all[all.length - 61][1] - 1 : null;
+    const m = all.slice(-121);   // dix ans au plus sur la courbe
+    const at = (k) => (m.length > k ? m[m.length - 1 - k][1] : null);
+    const last = at(0);
+    const perf = (k) => (ok(last) && ok(at(k)) ? last / at(k) - 1 : null);
+    const y1 = perf(12), y5 = ok(perf5) ? Math.pow(1 + perf5, 1 / 5) - 1 : null;
+    const pc = (v, suffix = "") => (ok(v) ? `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${nf1.format(v * 100)} %${suffix}</span>` : "—");
+    const item = (k, v) => `<span class="px-i"><small>${k}</small><b>${v}</b></span>`;
+    const head = `<div class="px-head">
+      <span class="px-main"><small>Cours${pd ? ` au ${new Date(pd).toLocaleDateString("fr-FR")}` : ""}</small><b>${fmtPx(c.px[0])}</b></span>
+      ${m.length > 12 ? item("Sur 1 an", pc(y1)) : ""}
+      ${ok(y5) ? item("Sur 5 ans", pc(y5, " / an")) : ""}
+      ${item(`Capitalisation`, ok(f.mcap) ? `${M(f.mcap)} <small>M ${esc(c.cur)}</small>` : "—")}
+      ${item("PER", X(f.per))}
+      ${item("Rendement", P(f.divYield))}</div>`;
+    if (m.length < 6) return `<div class="pxb">${head}<p class="note">Courbe du cours : disponible pour le CAC 40 et le S&P 500 pour l'instant.</p></div>`;
+    const W = 640, H = 150, L = 6, R = 52, T = 8, B = 20;
+    const vs = m.map((x) => x[1]);
+    let lo = Math.min(...vs), hi = Math.max(...vs);
+    const pad = (hi - lo) * 0.08 || 1; lo = Math.max(0, lo - pad); hi += pad;
+    const x = (k) => L + k * (W - L - R) / (m.length - 1), y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
+    const line = m.map((p, k) => `${x(k).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const area = `${x(0).toFixed(1)},${H - B} ${line} ${x(m.length - 1).toFixed(1)},${H - B}`;
+    const up = last >= m[0][1];
+    const col = up ? "#1e8a4c" : "#c8402f";
+    // Graduations : 4 niveaux arrondis, et les années (janvier).
+    const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 3)));
+    const unit = [1, 2, 5, 10].map((u) => u * step).find((u) => (hi - lo) / u <= 4) || step * 10;
+    const ticks = []; for (let v = Math.ceil(lo / unit) * unit; v <= hi; v += unit) ticks.push(v);
+    const years = m.map((p, k) => [p[0], k]).filter(([d, k]) => d.endsWith("-01") && x(k) > 16);
+    const svg = `<svg class="px-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cours mensuel de ${esc(c.n)}">
+      ${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="px-grid"/><text x="${W - R + 6}" y="${(y(v) + 4).toFixed(1)}" class="px-ax">${nf0.format(v)}</text>`).join("")}
+      ${years.map(([d, k]) => `<text x="${x(k).toFixed(1)}" y="${H - 5}" text-anchor="middle" class="px-ax">${d.slice(0, 4)}</text>`).join("")}
+      <polygon points="${area}" fill="${col}" opacity="0.08"/>
+      <polyline points="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="${x(m.length - 1).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3.5" fill="${col}"/>
+      ${m.map((p, k) => `<rect x="${(x(k) - (W - L - R) / m.length / 2).toFixed(1)}" y="${T}" width="${((W - L - R) / m.length).toFixed(1)}" height="${H - T - B}" fill="transparent"><title>${p[0].slice(5, 7)}/${p[0].slice(0, 4)} : ${fmtPx(p[1])}</title></rect>`).join("")}
+    </svg>`;
+    return `<div class="pxb">${head}${svg}<p class="px-note">Fin de mois, ${m[0][0].slice(0, 4)}–${m[m.length - 1][0].slice(0, 4)}, cours ajustés des dividendes et divisions (performances dividendes réinvestis).</p></div>`;
   }
 
   // Phrase d'identité en tête de fiche.
@@ -1366,19 +1442,22 @@ const Analyse = (() => {
     const K = conclusion(c, f, i, st, V);
     curV = { A: V.val, P: V.solv, "€": mv };
     V.rows.forEach(([n, , s, t]) => (curV[n] = [s, t]));
-    const html = intro(c, f, i) + cubes(c, f, i, st, V, mv) +
-      `<h3 class="part"><span class="part-n">1</span> L'analyse financière <small>— deux questions, puis les 4 étapes ; cliquer une ligne pour le détail</small></h3>` +
+    curT = tileData(c, f, i, st, V, mv);
+    const html = priceBlock(c, f) + intro(c, f, i) +
+      `<div class="synth"><div class="synth-g">Les deux questions</div>` +
       step("A", "Actionnaire : l'entreprise crée-t-elle de la valeur ?", "", K.share) +
       step("P", "Prêteur : peut-elle rembourser ses dettes ?", "", K.lend) +
-      `<h4 class="sub">Les 4 étapes</h4>` +
+      `<div class="synth-g">Les 4 étapes</div>` +
       step1(c, f, i, st) + step2(c, f, i, st) + step3(c, f, i, st) + step4(c, f, i, st) +
-      `<h3 class="part"><span class="part-n">2</span> Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></h3>` +
-      valuation(c, f, i, st) +
+      `<div class="synth-g">Le marché <small>— si elle crée de la valeur, la paie-t-il déjà ?</small></div>` +
+      valuation(c, f, i, st) + `</div>` +
+      `<p class="note cubes-note">Cliquer une ligne pour l'explication et le détail. Courbes : les derniers exercices ; pointillé : le repère (coût du capital, médiane du secteur, 3× l'EBE, flux nul).</p>` +
       (ok(f.mcap) && new Date().getFullYear() - state.meta.years[i] >= 2 ? `<p class="note warn">⚠ Comptes ${state.meta.years[i]} : le cours actuel est comparé à des comptes de plus d'un an (le rapport annuel plus récent n'est pas encore dans la base ESEF). Les multiples de marché sont à prendre avec prudence.</p>` : "") +
       `<h4 class="sub">Pour aller plus loin</h4>` +
       step("+", "Scores complémentaires", "radar sectoriel, Piotroski, Altman", qualityCard(c, f, i, st)) +
       `<p class="note">Comparaison avec ${st.n} sociétés cotées du secteur « ${esc(state.meta.sectors[c.s])} », toutes zones. Verdicts automatiques, à confirmer par l'analyse économique (marché, position concurrentielle) et la lecture des principes comptables.</p>
       <details class="method"><summary>Le plan d'analyse</summary>${METHOD_HTML}</details>`;
+    curT = null;
     curV = null;
     return html;
   }
